@@ -1301,45 +1301,138 @@
         return;
       }
 
+      // ── Sort state ──────────────────────────────────────────────────
+      let allHolders  = [];   // enriched holders array (persisted after fetch)
+      let currentDecimals = 0;
+      let sortCol = 'amount'; // 'rank' | 'amount' | 'percentage'
+      let sortDir = 'desc';   // 'asc' | 'desc'
+
       function shortenAddress(addr) {
         return addr.slice(0, 6) + '...' + addr.slice(-4);
       }
 
-      function renderHolders(holders, totalSupplyNum, decimals) {
-        if (!holders.length) {
+      // ── Sort helpers ────────────────────────────────────────────────
+      function sortedHolders() {
+        const arr = [...allHolders];
+        arr.sort((a, b) => {
+          const valA = sortCol === 'rank' ? a.rank : (sortCol === 'percentage' ? a.percentage : a.amount);
+          const valB = sortCol === 'rank' ? b.rank : (sortCol === 'percentage' ? b.percentage : b.amount);
+          return sortDir === 'asc' ? valA - valB : valB - valA;
+        });
+        return arr;
+      }
+
+      function arrow(col) {
+        if (sortCol !== col) return '<span style="opacity:0.3; font-size:9px;"> ⇅</span>';
+        return sortDir === 'desc'
+          ? '<span style="color:#fff; font-size:9px;"> ▼</span>'
+          : '<span style="color:#fff; font-size:9px;"> ▲</span>';
+      }
+
+      function thStyle(col) {
+        const active = sortCol === col;
+        return `style="padding:7px 4px; cursor:pointer; user-select:none; white-space:nowrap;
+                text-align:${col === 'owner' ? 'left' : 'right'};
+                background:${active ? 'rgba(255,255,255,0.08)' : 'transparent'};
+                border-bottom:1px solid #fff; opacity:0.9; transition:background 0.2s;"
+                data-col="${col}"
+                onmouseover="this.style.background='rgba(255,255,255,0.12)'"
+                onmouseout="this.style.background='${active ? 'rgba(255,255,255,0.08)' : 'transparent'}'"`;
+      }
+
+      // ── Render table ────────────────────────────────────────────────
+      function renderHolders() {
+        if (!allHolders.length) {
           resultsDiv.innerHTML = `<div style="font-size:12px; opacity:0.6; text-align:center; padding:12px;">No holders found or zero balances.</div>`;
           return;
         }
 
-        let html = `
-          <table style="width:100%; border-collapse:collapse; color:#fff; font-size:11px; font-family:'JetBrains Mono',monospace;">
+        const sorted = sortedHolders();
+
+        // Sort-direction quick-switch bar
+        const sortBarHTML = `
+          <div id="sortBar" style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap; align-items:center;">
+            <span style="font-size:10px; opacity:0.5; letter-spacing:1px;">SORT:</span>
+            <button onclick="window._holderSort('amount','desc')"
+              style="font-family:'JetBrains Mono',monospace; font-size:10px; cursor:pointer;
+                     padding:3px 8px; border-radius:3px; border:1px solid rgba(255,255,255,${sortCol==='amount'&&sortDir==='desc'?'0.9':'0.3'});
+                     background:${sortCol==='amount'&&sortDir==='desc'?'rgba(255,255,255,0.15)':'transparent'}; color:#fff;">
+              ▼ Highest First
+            </button>
+            <button onclick="window._holderSort('amount','asc')"
+              style="font-family:'JetBrains Mono',monospace; font-size:10px; cursor:pointer;
+                     padding:3px 8px; border-radius:3px; border:1px solid rgba(255,255,255,${sortCol==='amount'&&sortDir==='asc'?'0.9':'0.3'});
+                     background:${sortCol==='amount'&&sortDir==='asc'?'rgba(255,255,255,0.15)':'transparent'}; color:#fff;">
+              ▲ Lowest First
+            </button>
+            <button onclick="window._holderSort('rank','asc')"
+              style="font-family:'JetBrains Mono',monospace; font-size:10px; cursor:pointer;
+                     padding:3px 8px; border-radius:3px; border:1px solid rgba(255,255,255,${sortCol==='rank'&&sortDir==='asc'?'0.9':'0.3'});
+                     background:${sortCol==='rank'&&sortDir==='asc'?'rgba(255,255,255,0.15)':'transparent'}; color:#fff;">
+              # By Rank
+            </button>
+            <span style="margin-left:auto; font-size:10px; opacity:0.45;">${allHolders.length} holders</span>
+          </div>`;
+
+        let rows = '';
+        sorted.forEach((h, i) => {
+          const isTop = i === 0 && sortCol === 'amount' && sortDir === 'desc';
+          rows += `
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.08);
+                       background:${isTop ? 'rgba(255,255,255,0.05)' : 'transparent'};
+                       transition:background 0.15s;"
+                onmouseover="this.style.background='rgba(255,255,255,0.08)'"
+                onmouseout="this.style.background='${isTop ? 'rgba(255,255,255,0.05)' : 'transparent'}'">
+              <td style="padding:6px 4px; text-align:right; opacity:0.45; font-size:10px;">${h.rank}</td>
+              <td style="padding:6px 4px;" title="${h.owner}">${shortenAddress(h.owner)}${isTop ? ' <span style="font-size:9px; opacity:0.7;">👑</span>' : ''}</td>
+              <td style="text-align:right; padding:6px 4px;">${h.amount.toLocaleString(undefined, {maximumFractionDigits: currentDecimals})}</td>
+              <td style="text-align:right; padding:6px 4px; opacity:0.75;">${h.percentage.toFixed(4)}%</td>
+            </tr>`;
+        });
+
+        const tableHTML = `
+          <table id="holderTable" style="width:100%; border-collapse:collapse; color:#fff; font-size:11px; font-family:'JetBrains Mono',monospace;">
             <thead>
-              <tr style="border-bottom:1px solid #fff; opacity:0.8;">
-                <th style="text-align:left; padding:6px 4px;">HOLDER</th>
-                <th style="text-align:right; padding:6px 4px;">BALANCE</th>
-                <th style="text-align:right; padding:6px 4px;">%</th>
+              <tr>
+                <th ${thStyle('rank')} style="text-align:right; padding:7px 4px; width:28px; cursor:pointer; user-select:none; white-space:nowrap; border-bottom:1px solid #fff; opacity:0.9; background:${sortCol==='rank'?'rgba(255,255,255,0.08)':'transparent'};" data-col="rank">#${arrow('rank')}</th>
+                <th ${thStyle('owner')}>HOLDER</th>
+                <th ${thStyle('amount')}>BALANCE${arrow('amount')}</th>
+                <th ${thStyle('percentage')}>%${arrow('percentage')}</th>
               </tr>
             </thead>
-            <tbody>
-        `;
+            <tbody>${rows}</tbody>
+          </table>`;
 
-        for (const h of holders) {
-          html += `
-            <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
-              <td style="padding:6px 4px;" title="${h.owner}">${shortenAddress(h.owner)}</td>
-              <td style="text-align:right; padding:6px 4px;">${h.amount.toLocaleString(undefined, {maximumFractionDigits: decimals})}</td>
-              <td style="text-align:right; padding:6px 4px;">${h.percentage.toFixed(4)}%</td>
-            </tr>
-          `;
-        }
+        resultsDiv.innerHTML = sortBarHTML + tableHTML;
 
-        html += `</tbody></table>`;
-        resultsDiv.innerHTML = html;
+        // Attach click listeners to <th> elements
+        resultsDiv.querySelectorAll('th[data-col]').forEach(th => {
+          th.addEventListener('click', () => {
+            const col = th.getAttribute('data-col');
+            if (col === 'owner') return; // address column not sortable
+            if (sortCol === col) {
+              sortDir = sortDir === 'desc' ? 'asc' : 'desc';
+            } else {
+              sortCol = col;
+              sortDir = col === 'rank' ? 'asc' : 'desc';
+            }
+            renderHolders();
+          });
+        });
       }
 
+      // Global hook so inline onclick buttons can call back into the closure
+      window._holderSort = function(col, dir) {
+        sortCol = col;
+        sortDir = dir;
+        renderHolders();
+      };
+
+      // ── Fetch on-chain data ─────────────────────────────────────────
       async function fetchTokenHolders(mintAddress) {
         loadingDiv.style.display = 'block';
         resultsDiv.innerHTML = '';
+        allHolders = [];
 
         try {
           const mintPubkey = new PublicKey(mintAddress);
@@ -1354,6 +1447,7 @@
           }
 
           const decimals = mintInfo.decimals;
+          currentDecimals = decimals;
           const supply = mintInfo.supply; // bigint
 
           // Fetch all token accounts for this mint
@@ -1361,36 +1455,37 @@
             TOKEN_PROGRAM_ID,
             {
               filters: [
-                { dataSize: 165 }, // Token account size
+                { dataSize: 165 },
                 { memcmp: { offset: 0, bytes: mintAddress } }
               ]
             }
           );
 
-          const holders = [];
           const totalSupplyNum = Number(supply) / Math.pow(10, decimals);
+          const holders = [];
 
           for (const { account } of accounts) {
-            const data = account.data;
-            const decoded = AccountLayout.decode(data);
+            const decoded = AccountLayout.decode(account.data);
             const amount = Number(decoded.amount) / Math.pow(10, decimals);
-            
-            if (amount === 0) continue; // Skip zero balances
-
+            if (amount === 0) continue;
             const owner = new PublicKey(decoded.owner).toBase58();
             holders.push({ owner, amount });
           }
 
-          // Sort by balance descending (largest to smallest)
+          // Default sort: highest → lowest; assign permanent rank based on that
           holders.sort((a, b) => b.amount - a.amount);
 
-          // Calculate percentages
-          const enrichedHolders = holders.map(h => ({
+          allHolders = holders.map((h, i) => ({
             ...h,
+            rank: i + 1,
             percentage: (h.amount / totalSupplyNum) * 100,
           }));
 
-          renderHolders(enrichedHolders, totalSupplyNum, decimals);
+          // Reset sort state to default on each new fetch
+          sortCol = 'amount';
+          sortDir = 'desc';
+
+          renderHolders();
 
         } catch (error) {
           console.error('Error fetching holders:', error);
@@ -1405,7 +1500,7 @@
         }
       }
 
-      // Event listeners
+      // ── Event listeners ─────────────────────────────────────────────
       fetchBtn.addEventListener('click', () => {
         const mint = mintInput.value.trim();
         if (!mint) {
@@ -1416,9 +1511,7 @@
       });
 
       mintInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-          fetchBtn.click();
-        }
+        if (e.key === 'Enter') fetchBtn.click();
       });
     }
   })();
