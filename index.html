@@ -1,0 +1,1428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>Project109T Terminal</title>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap');
+
+    /* ----- CUSTOM CURSOR (TERMINAL BLOCK) ----- */
+    * {
+      cursor: none !important;
+    }
+
+    body {
+      margin: 0;
+      background: #000000;
+      color: #ffffff;
+      font-family: 'JetBrains Mono', monospace;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      animation: fadeInBody 1.2s ease;
+      position: relative;
+    }
+
+    /* Custom cursor element */
+    #customCursor {
+      position: fixed;
+      width: 12px;
+      height: 22px;
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 0 8px #ffffff, 0 0 15px rgba(255,255,255,0.5);
+      pointer-events: none;
+      z-index: 9999;
+      transform: translate(-2px, -2px);
+      transition: width 0.1s, height 0.1s, background 0.1s;
+      mix-blend-mode: difference;
+      border-radius: 2px;
+      animation: cursorPulse 1.5s infinite;
+    }
+
+    @keyframes cursorPulse {
+      0%, 100% { opacity: 0.9; box-shadow: 0 0 5px #fff, 0 0 10px #fff; }
+      50% { opacity: 1; box-shadow: 0 0 12px #fff, 0 0 20px #fff; }
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        to bottom,
+        rgba(0,0,0,0.02),
+        rgba(0,0,0,0.02) 1px,
+        transparent 1px,
+        transparent 3px
+      );
+    }
+
+    /* Scanline overlay */
+    .scanlines {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 100;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(0,0,0,0.1) 0px,
+        rgba(255,255,255,0.02) 1px,
+        transparent 2px,
+        transparent 4px
+      );
+      opacity: 0.3;
+      animation: scanMove 8s linear infinite;
+    }
+
+    @keyframes scanMove {
+      0% { background-position: 0 0; }
+      100% { background-position: 0 10px; }
+    }
+
+    @keyframes fadeInBody {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .terminal {
+      width: 90%;
+      max-width: 800px;
+      background: #000000;
+      border-radius: 10px;
+      padding: 20px;
+      position: relative;
+      box-shadow:
+        0 0 10px rgba(255,255,255,0.15),
+        0 0 20px rgba(255,255,255,0.2),
+        0 0 40px rgba(255,255,255,0.25),
+        0 0 80px rgba(255,255,255,0.15);
+      animation: floatIn 0.8s ease;
+      transition: box-shadow 0.4s ease, border-color 0.3s;
+      border: 1px solid rgba(255,255,255,0.1);
+      z-index: 2;
+    }
+
+    .terminal:hover {
+      box-shadow:
+        0 0 20px rgba(255,255,255,0.4),
+        0 0 45px rgba(255,255,255,0.35),
+        0 0 90px rgba(255,255,255,0.3),
+        0 0 140px rgba(255,255,255,0.2);
+      border-color: rgba(255,255,255,0.3);
+    }
+
+    @keyframes floatIn {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .terminal-header {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 15px;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      box-shadow: 0 0 5px currentColor, 0 0 10px currentColor;
+      animation: glow 1.5s infinite ease-in-out;
+    }
+
+    .red { background: #ff5f56; color: #ff5f56; animation-delay: 0s; }
+    .yellow { background: #ffbd2e; color: #ffbd2e; animation-delay: 0.3s; }
+    .green { background: #27c93f; color: #27c93f; animation-delay: 0.6s; }
+
+    .line {
+      margin: 6px 0;
+      animation: fadeLine 0.4s ease;
+    }
+
+    @keyframes fadeLine {
+      from { opacity: 0; transform: translateX(-5px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    .prompt::before {
+      content: "> ";
+      color: #ffffff;
+    }
+
+    .highlight {
+      color: #000000;
+      text-shadow: 0 0 6px #ffffff;
+    }
+
+    .button {
+      display: inline-block;
+      margin-top: 15px;
+      padding: 10px 18px;
+      border: 1px solid #ffffff;
+      color: #ffffff;
+      text-decoration: none;
+      border-radius: 6px;
+      transition: all 0.25s ease;
+      cursor: none;
+    }
+
+    .button:hover {
+      background: #ffffff;
+      color: #000000;
+      box-shadow: 0 0 10px #ffffff, 0 0 20px #ffffff;
+      transform: translateY(-2px);
+    }
+
+    /* Enhanced blinking cursor */
+    .cursor {
+      display: inline-block;
+      width: 12px;
+      height: 20px;
+      background: #ffffff;
+      margin-left: 5px;
+      box-shadow: 0 0 8px #ffffff, 0 0 15px #ffffff;
+      animation: blinkCursor 1.2s infinite, cursorPulse 1.5s infinite;
+      vertical-align: middle;
+    }
+
+    @keyframes blinkCursor {
+      0%, 49% { opacity: 1; }
+      50%, 100% { opacity: 0; }
+    }
+
+    @keyframes glow {
+      0%, 100% {
+        box-shadow: 0 0 5px currentColor, 0 0 10px currentColor;
+        transform: scale(1);
+      }
+      50% {
+        box-shadow: 0 0 15px currentColor, 0 0 25px currentColor;
+        transform: scale(1.2);
+      }
+    }
+
+    .logo {
+      animation: logoGlow 2s infinite ease-in-out;
+      text-shadow: 0 0 2px #ffffff, 0 0 5px #ffffff;
+    }
+
+    @keyframes logoGlow {
+      0%, 100% {
+        text-shadow: 0 0 2px #ffffff, 0 0 5px #ffffff;
+        opacity: 0.85;
+      }
+      50% {
+        text-shadow: 0 0 8px #ffffff, 0 0 15px #ffffff;
+        opacity: 1;
+      }
+    }
+
+    #supply { color: #ffffff !important; }
+
+    .corner-bracket {
+      position: absolute;
+      width: 18px; height: 18px;
+      pointer-events: none;
+      animation: bracketPulse 3s ease-in-out infinite;
+      opacity: 0.6;
+    }
+    .corner-bracket.tl { top: 6px; left: 6px; border-top: 1px solid #fff; border-left: 1px solid #fff; }
+    .corner-bracket.tr { top: 6px; right: 6px; border-top: 1px solid #fff; border-right: 1px solid #fff; animation-delay: 0.75s; }
+    .corner-bracket.bl { bottom: 6px; left: 6px; border-bottom: 1px solid #fff; border-left: 1px solid #fff; animation-delay: 1.5s; }
+    .corner-bracket.br { bottom: 6px; right: 6px; border-bottom: 1px solid #fff; border-right: 1px solid #fff; animation-delay: 2.25s; }
+    @keyframes bracketPulse {
+      0%,100% { opacity: 0.4; }
+      50%      { opacity: 1; }
+    }
+
+    .data-ticker {
+      overflow: hidden;
+      white-space: nowrap;
+      font-size: 10px;
+      opacity: 0.4;
+      margin-bottom: 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      padding-bottom: 6px;
+    }
+    .data-ticker-inner {
+      display: inline-block;
+      animation: tickerScroll 22s linear infinite;
+      will-change: transform;
+    }
+    @keyframes tickerScroll {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
+    .toast-notification {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #000000;
+      border: 1px solid #ffffff;
+      border-radius: 8px;
+      padding: 12px 18px;
+      min-width: 240px;
+      max-width: 320px;
+      z-index: 1000;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: #ffffff;
+      box-shadow: 0 0 15px rgba(255,255,255,0.2), 0 0 5px rgba(255,255,255,0.1);
+      backdrop-filter: blur(2px);
+      opacity: 0;
+      transform: translateX(50px);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      pointer-events: none;
+    }
+
+    .toast-notification.show {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .toast-notification .toast-title {
+      font-weight: bold;
+      margin-bottom: 6px;
+      font-size: 12px;
+      opacity: 0.7;
+      letter-spacing: 1px;
+    }
+
+    .toast-notification .toast-message {
+      line-height: 1.4;
+    }
+
+    .toast-notification .toast-time {
+      font-size: 16px;
+      font-weight: bold;
+      margin-top: 6px;
+      color: #ffffff;
+      text-shadow: 0 0 4px #ffffff;
+    }
+
+    .toast-notification .toast-close {
+      position: absolute;
+      top: 6px;
+      right: 10px;
+      cursor: none;
+      font-size: 14px;
+      opacity: 0.5;
+      pointer-events: auto;
+    }
+    .toast-notification .toast-close:hover {
+      opacity: 1;
+    }
+
+    .status-pulse {
+      animation: statusGlow 3s infinite ease-in-out;
+      display: inline-block;
+    }
+    @keyframes statusGlow {
+      0%, 100% { opacity: 0.9; text-shadow: 0 0 0px #ffffff; }
+      50% { opacity: 1; text-shadow: 0 0 3px rgba(255,255,255,0.4); }
+    }
+
+    .supply-update {
+      display: inline-block;
+      transition: all 0.2s ease;
+    }
+    .supply-update.bounce {
+      animation: supplyGlow 0.3s ease-out;
+    }
+    @keyframes supplyGlow {
+      0% { transform: scale(1); text-shadow: 0 0 0px #ffffff; }
+      40% { transform: scale(1.05); text-shadow: 0 0 10px #ffffff; }
+      100% { transform: scale(1); text-shadow: 0 0 0px #ffffff; }
+    }
+
+    .clock-pulse {
+      animation: clockSoftPulse 2s infinite alternate;
+    }
+    @keyframes clockSoftPulse {
+      0% { text-shadow: 0 0 0px rgba(255,255,255,0); }
+      100% { text-shadow: 0 0 2px rgba(255,255,255,0.5); }
+    }
+
+    .roadmap-item {
+      opacity: 0;
+      transform: translateX(-5px);
+      animation: roadmapReveal 0.5s ease forwards;
+      transition: all 0.2s;
+    }
+    .roadmap-item:hover {
+      text-shadow: 0 0 5px #fff;
+      transform: translateX(2px);
+    }
+    .roadmap-item:nth-child(1) { animation-delay: 0.1s; }
+    .roadmap-item:nth-child(2) { animation-delay: 0.2s; }
+    .roadmap-item:nth-child(3) { animation-delay: 0.3s; }
+    .roadmap-item:nth-child(4) { animation-delay: 0.4s; }
+    .roadmap-item:nth-child(5) { animation-delay: 0.5s; }
+    .roadmap-item:nth-child(6) { animation-delay: 0.6s; }
+    @keyframes roadmapReveal {
+      0% { opacity: 0; transform: translateX(-5px); }
+      100% { opacity: 1; transform: translateX(0); }
+    }
+
+    .admin-glow {
+      transition: box-shadow 0.3s ease, border-color 0.3s ease;
+    }
+    .admin-glow:hover {
+      box-shadow: 0 0 12px rgba(255,255,255,0.15);
+      border-color: rgba(255,255,255,0.4);
+    }
+
+    /* Glitch effect for admin message */
+    .glitch-text {
+      animation: glitch 5s infinite;
+    }
+    @keyframes glitch {
+      0%, 100% { transform: skew(0deg, 0deg); opacity: 1; }
+      95% { transform: skew(0deg, 0deg); opacity: 1; }
+      96% { transform: skew(2deg, 0.5deg); opacity: 0.8; text-shadow: 2px 0 red, -2px 0 blue; }
+      97% { transform: skew(-2deg, -0.5deg); opacity: 0.9; text-shadow: -2px 0 red, 2px 0 blue; }
+      98% { transform: skew(0deg, 0deg); opacity: 1; text-shadow: none; }
+    }
+
+    .join-neon {
+      display: inline-block;
+      animation: neonFlicker 4s infinite;
+    }
+    @keyframes neonFlicker {
+      0%, 100% { opacity: 0.95; text-shadow: 0 0 0px #ffffff; }
+      50% { opacity: 1; text-shadow: 0 0 2px rgba(255,255,255,0.3); }
+    }
+
+    .launch-notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      max-width: 340px;
+      background: #000000ee;
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.7);
+      border-radius: 12px;
+      padding: 14px 18px;
+      z-index: 2000;
+      font-family: 'JetBrains Mono', monospace;
+      box-shadow: 0 0 20px rgba(255,255,255,0.25), 0 0 8px rgba(255,255,255,0.3);
+      transition: opacity 0.4s cubic-bezier(0.2, 0.9, 0.4, 1.1), transform 0.3s ease;
+      opacity: 1;
+      transform: translateX(0);
+      pointer-events: auto;
+    }
+
+    .launch-notification.hide {
+      opacity: 0;
+      transform: translateX(50px);
+      pointer-events: none;
+    }
+
+    .launch-notification .notif-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.3);
+      padding-bottom: 6px;
+    }
+
+    .launch-notification .notif-icon {
+      font-size: 20px;
+      filter: drop-shadow(0 0 4px #ffffff);
+      animation: iconPulse 1.2s infinite ease;
+    }
+
+    @keyframes iconPulse {
+      0%, 100% { opacity: 0.7; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.1); text-shadow: 0 0 5px white; }
+    }
+
+    .launch-notification .notif-title {
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, #fff, #aaa);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .launch-notification .countdown-block {
+      font-size: 22px;
+      font-weight: 700;
+      text-align: center;
+      margin: 10px 0 8px 0;
+      letter-spacing: 2px;
+      text-shadow: 0 0 6px rgba(255,255,255,0.6);
+    }
+
+    .launch-notification .countdown-label {
+      font-size: 9px;
+      text-align: center;
+      opacity: 0.6;
+      letter-spacing: 1px;
+    }
+
+    .launch-notification .launch-date {
+      font-size: 10px;
+      text-align: center;
+      margin-top: 8px;
+      border-top: 1px solid rgba(255,255,255,0.2);
+      padding-top: 6px;
+      opacity: 0.7;
+    }
+
+    .close-notif {
+      position: absolute;
+      top: 8px;
+      right: 12px;
+      font-size: 16px;
+      cursor: none;
+      opacity: 0.5;
+      transition: 0.2s;
+      background: none;
+      border: none;
+      color: white;
+      font-family: monospace;
+    }
+    .close-notif:hover {
+      opacity: 1;
+      text-shadow: 0 0 4px white;
+    }
+
+    @media (max-width: 550px) {
+      .launch-notification {
+        top: 12px;
+        right: 12px;
+        left: 12px;
+        max-width: none;
+        width: auto;
+        padding: 10px 14px;
+      }
+      .launch-notification .countdown-block {
+        font-size: 18px;
+      }
+    }
+
+    .pre-launch-badge {
+      display: inline-block;
+      background: #000;
+      border: 1px solid #ffaa33;
+      color: #ffaa33;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      margin-left: 10px;
+      letter-spacing: 1px;
+      text-shadow: 0 0 2px #ffaa33;
+      animation: badgePulse 2s infinite;
+    }
+    @keyframes badgePulse {
+      0%,100% { opacity: 0.7; border-color: #ffaa33; }
+      50% { opacity: 1; border-color: #ffcc66; box-shadow: 0 0 4px #ffaa33; }
+    }
+  </style>
+  
+  <!-- Solana Web3 libraries for token tracker -->
+  <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+  <script src="https://unpkg.com/@solana/spl-token@latest/lib/index.iife.min.js"></script>
+</head>
+<body>
+
+  <!-- Custom Cursor Element -->
+  <div id="customCursor"></div>
+  <!-- Scanline overlay for CRT effect -->
+  <div class="scanlines"></div>
+
+  <div class="terminal">
+
+    <!-- Corner brackets -->
+    <div class="corner-bracket tl"></div>
+    <div class="corner-bracket tr"></div>
+    <div class="corner-bracket bl"></div>
+    <div class="corner-bracket br"></div>
+
+    <!-- Data stream ticker -->
+    <div class="data-ticker">
+      <span class="data-ticker-inner" id="tickerContent">
+        SYS::PRELAUNCH &nbsp;|&nbsp; COUNTDOWN ACTIVE &nbsp;|&nbsp; TOKEN_RELEASE: PAUSED &nbsp;|&nbsp; SUPPLY: 0 / 109 &nbsp;|&nbsp; STATUS: LOCKED &nbsp;|&nbsp; CHAIN: SOLANA &nbsp;|&nbsp; LAUNCH: 7 DAYS &nbsp;|&nbsp;
+        SYS::PRELAUNCH &nbsp;|&nbsp; COUNTDOWN ACTIVE &nbsp;|&nbsp; TOKEN_RELEASE: PAUSED &nbsp;|&nbsp; SUPPLY: 0 / 109 &nbsp;|&nbsp; STATUS: LOCKED &nbsp;|&nbsp; CHAIN: SOLANA &nbsp;|&nbsp; LAUNCH: 7 DAYS &nbsp;|&nbsp;
+      </span>
+    </div>
+
+    <div class="terminal-header">
+      <div class="dot red"></div>
+      <div class="dot yellow"></div>
+      <div class="dot green"></div>
+    </div>
+
+    <pre class="logo" style="color:#ffffff; text-align:center; font-size:14px;">
+██████╗ ██████╗  ██████╗      ██╗███████╗ ██████╗████████╗
+██╔══██╗██╔══██╗██╔═══██╗     ██║██╔════╝██╔════╝╚══██╔══╝
+██████╔╝██████╔╝██║   ██║     ██║█████╗  ██║        ██║   
+██╔═══╝ ██╔══██╗██║   ██║██   ██║██╔══╝  ██║        ██║   
+██║     ██║  ██║╚██████╔╝╚█████╔╝███████╗╚██████╗   ██║   
+╚═╝     ╚═╝  ╚═╝ ╚═════╝  ╚════╝ ╚══════╝ ╚═════╝   ╚═╝   
+                                                     109t
+
+                project<span style="color:#ffffff; text-shadow:0 0 10px #ffffff;">109</span>t.fun
+</pre>
+
+    <pre id="asciiBox" style="color:#ffffff; text-align:left;">
+╔══════════════════════════════════════╗
+║          PROJECT <span style="color:#ffffff; text-shadow:0 0 8px #ffffff;">109</span>T            ║
+╠══════════════════════════════════════╣
+║   ░ SYSTEM: PRE-LAUNCH (PAUSED)      ║
+║   ░ MAX SUPPLY: 109                  ║
+╚══════════════════════════════════════╝
+    </pre>
+
+    <div class="line prompt" id="init"></div>
+
+    <div class="line prompt">
+      Total Released: <span class="highlight supply-update" id="supply">0 / 109 tokens</span> <span class="pre-launch-badge" id="preLaunchBadge">PRE-LAUNCH</span>
+    </div>
+
+    <div class="line prompt clock-pulse" id="clock">Next Token In: --:--:--</div>
+
+    <div class="line prompt" id="counter">Day 0 / 109</div>
+
+    <div class="line prompt"><span class="status-pulse" id="statusText">Status: PRE-LAUNCH (Countdown Active)</span></div>
+
+    <div style="margin-top:12px; padding:10px; border:1px solid #ffffff; border-radius:6px; background:#000000;" class="admin-glow">
+      <div style="font-size:12px; opacity:0.7; margin-bottom:6px;">ADMIN MESSAGE</div>
+      <div id="adminMessage" style="font-size:13px; line-height:1.4; position:relative; overflow:hidden; min-height:72px;">
+        <div id="adminInner" class="glitch-text" style="transition: opacity 0.6s ease, transform 0.6s ease;">
+          ⏳ Project109T launches in 7 days.<br>
+          Token release is frozen until then.<br>
+          Countdown in progress — prepare for Day 1.<br>
+          Patience = prime position.
+        </div>
+      </div>
+    </div>
+
+    <a href="https://pump.fun/" target="_blank" rel="noopener noreferrer" class="button">[ Buy on Pump.fun ]</a>
+    <a href="#" id="connectWallet" class="button">[ Connect Wallet ]</a>
+
+    <div style="margin-top:12px; display:flex; flex-wrap:wrap; gap:8px;">
+      <a href="https://discord.gg/4WWt3E9N" target="_blank" class="button">[ Discord ]</a>
+      <a href="https://telegram.org/" target="_blank" class="button">[ Telegram ]</a>
+      <a href="https://x.com/Project109T" target="_blank" class="button">[ X ]</a>
+      <a href="https://dexscreener.com" target="_blank" class="button">[ Dex Screener ]</a>
+    </div>
+
+    <div id="summaryText" style="margin-top:12px; font-size:12px; opacity:0.85; line-height:1.6;">
+      Project109T is a limited 109-day token experiment designed around time, scarcity, and patience.<br><br>
+      <strong>📅 PRE-LAUNCH PERIOD: The first token will be released exactly 7 days from now.</strong> Until then, supply remains zero, and the daily release timer is paused. The official countdown is active.<br><br>
+      Every 24 hours after launch, exactly one new token unlocks — no pre-minting, no shortcuts. The system moves forward only, creating a clear timeline from D1 to D109.<br><br>
+      Early participants naturally hold the rarest positions. This is a pure time‑based structure.
+    </div>
+
+    <div id="roadmapContainer" style="margin-top:12px; padding:10px; border:1px solid #ffffff; border-radius:6px; background:#000000;">
+      <div style="font-size:12px; opacity:0.7; margin-bottom:6px;">ROADMAP</div>
+      <div id="roadmapList" style="font-size:13px; line-height:1.6;">
+        <div class="roadmap-item">░ Pre-Launch (7 days) — Countdown / Zero supply</div>
+        <div class="roadmap-item">░ Day 1–10: Initial launch phase — early holders enter</div>
+        <div class="roadmap-item">░ Day 11–30: Awareness growth — community forming</div>
+        <div class="roadmap-item">░ Day 31–60: Mid-cycle — scarcity becomes visible</div>
+        <div class="roadmap-item">░ Day 61–90: Late phase — positions become rare</div>
+        <div class="roadmap-item">░ Day 91–109: Final stretch — maximum scarcity reached</div>
+      </div>
+    </div>
+
+    <!-- ========== TOKEN HOLDER TRACKER SECTION ========== -->
+    <div style="margin-top:20px; padding:12px; border:1px solid #ffffff; border-radius:6px; background:#000000;" class="admin-glow">
+      <div style="font-size:12px; opacity:0.7; margin-bottom:10px;">🔍 TOKEN HOLDER TRACKER (SOLANA)</div>
+      
+      <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+        <input type="text" id="mintInput" placeholder="Enter token mint address" 
+               style="flex:1; min-width:200px; background:#000; border:1px solid #fff; color:#fff; 
+                      padding:10px 12px; font-family:'JetBrains Mono',monospace; font-size:13px; 
+                      border-radius:4px; outline:none; box-shadow:0 0 5px rgba(255,255,255,0.2);">
+        <button id="fetchHoldersBtn" class="button" style="margin-top:0;">[ FETCH HOLDERS ]</button>
+      </div>
+
+      <div id="holderLoading" style="display:none; margin:10px 0; font-size:12px; opacity:0.8;">
+        <span class="cursor" style="width:8px; height:14px; margin-right:6px;"></span> Fetching on-chain data...
+      </div>
+
+      <div id="holderResults" style="max-height:300px; overflow-y:auto; margin-top:10px; 
+                  border-top:1px solid rgba(255,255,255,0.2); padding-top:10px;">
+        <div style="font-size:12px; opacity:0.6; text-align:center; padding:8px;">
+          Enter a mint address and click FETCH HOLDERS
+        </div>
+      </div>
+    </div>
+    <!-- ========== END TOKEN TRACKER ========== -->
+
+    <div class="line prompt">
+      <span class="join-neon" id="joinNeonText">Pre‑launch countdown active →</span><span class="cursor"></span>
+    </div>
+  </div>
+
+  <div id="toastContainer" aria-live="polite"></div>
+
+  <div id="launchNotify" class="launch-notification" role="status" aria-live="polite">
+    <button class="close-notif" id="closeNotifyBtn" aria-label="Close notification">✕</button>
+    <div class="notif-header">
+      <span class="notif-icon">⏳</span>
+      <span class="notif-title">TOKEN LAUNCH IN</span>
+    </div>
+    <div id="countdownDisplay" class="countdown-block">--d --h --m --s</div>
+    <div class="countdown-label">until first token release • Day 1</div>
+    <div class="launch-date">🔒 supply frozen • release starts after countdown</div>
+  </div>
+
+  <!-- Custom cursor movement script -->
+  <script>
+    (function() {
+      const cursor = document.getElementById('customCursor');
+      if (cursor) {
+        document.addEventListener('mousemove', (e) => {
+          cursor.style.left = e.clientX + 'px';
+          cursor.style.top = e.clientY + 'px';
+        });
+        document.addEventListener('mouseleave', () => {
+          cursor.style.opacity = '0';
+        });
+        document.addEventListener('mouseenter', () => {
+          cursor.style.opacity = '1';
+        });
+      }
+    })();
+  </script>
+
+  <!-- Original terminal logic script -->
+  <script>
+  (function() {
+    'use strict';
+
+    // ============================================================================
+    // CONSTANTS & CONFIGURATION (UTC-based daily release)
+    // ============================================================================
+    const CONFIG = {
+      MAX_SUPPLY: 109,
+      PRELAUNCH_DAYS: 7,
+      STORAGE_KEYS: {
+        START_DATE: 'project109_start_utc',
+        IS_LAUNCHED: 'project109_is_launched',
+        LAUNCH_TIMESTAMP: 'project109_launch_timestamp',
+        STATE: 'project109_state'
+      },
+      STATES: {
+        PRELAUNCH: 'prelaunch',
+        ACTIVE: 'active',
+        COMPLETED: 'completed'
+      }
+    };
+
+    const PRELAUNCH_DURATION_MS = CONFIG.PRELAUNCH_DAYS * 24 * 60 * 60 * 1000;
+    
+    function getUTCDayStart(date) {
+      const d = new Date(date);
+      d.setUTCHours(0, 0, 0, 0);
+      return d;
+    }
+
+    function calculateDaysElapsedFromStart(startDate) {
+      if (!startDate) return 0;
+      const nowUTC = getUTCDayStart(new Date());
+      const startUTC = getUTCDayStart(startDate);
+      const diffMs = nowUTC - startUTC;
+      const days = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
+      return Math.min(days, CONFIG.MAX_SUPPLY);
+    }
+
+    function getNextReleaseTime(startDate, currentDay) {
+      const nextRelease = getUTCDayStart(startDate);
+      nextRelease.setUTCDate(startDate.getUTCDate() + currentDay);
+      return nextRelease;
+    }
+
+    const StateManager = {
+      currentState: CONFIG.STATES.PRELAUNCH,
+      launchTimestamp: Date.now() + PRELAUNCH_DURATION_MS,
+      startDate: null,
+      isLaunched: false,
+      isCompleted: false,
+      
+      initialize() {
+        this.loadFromStorage();
+        
+        if (!this.loadFromStorage()) {
+          this.launchTimestamp = Date.now() + PRELAUNCH_DURATION_MS;
+          this.currentState = CONFIG.STATES.PRELAUNCH;
+          this.isLaunched = false;
+          this.isCompleted = false;
+          this.saveToStorage();
+        }
+        
+        if (this.currentState === CONFIG.STATES.PRELAUNCH && Date.now() >= this.launchTimestamp) {
+          this.transitionToActive();
+        }
+        
+        if (this.currentState === CONFIG.STATES.ACTIVE && this.startDate) {
+          const daysElapsed = calculateDaysElapsedFromStart(this.startDate);
+          if (daysElapsed >= CONFIG.MAX_SUPPLY) {
+            this.transitionToCompleted();
+          }
+        }
+      },
+      
+      loadFromStorage() {
+        try {
+          const storedState = localStorage.getItem(CONFIG.STORAGE_KEYS.STATE);
+          const storedLaunch = localStorage.getItem(CONFIG.STORAGE_KEYS.LAUNCH_TIMESTAMP);
+          const storedStart = localStorage.getItem(CONFIG.STORAGE_KEYS.START_DATE);
+          const storedIsLaunched = localStorage.getItem(CONFIG.STORAGE_KEYS.IS_LAUNCHED);
+          
+          if (storedState) {
+            this.currentState = storedState;
+            if (storedLaunch) this.launchTimestamp = parseInt(storedLaunch, 10);
+            if (storedStart) this.startDate = new Date(storedStart);
+            if (storedIsLaunched) this.isLaunched = storedIsLaunched === 'true';
+            
+            if (this.startDate && isNaN(this.startDate.getTime())) {
+              this.startDate = null;
+            }
+            
+            return true;
+          }
+        } catch (e) {
+          console.warn('Failed to load from localStorage:', e);
+        }
+        return false;
+      },
+      
+      saveToStorage() {
+        try {
+          localStorage.setItem(CONFIG.STORAGE_KEYS.STATE, this.currentState);
+          localStorage.setItem(CONFIG.STORAGE_KEYS.LAUNCH_TIMESTAMP, this.launchTimestamp.toString());
+          localStorage.setItem(CONFIG.STORAGE_KEYS.IS_LAUNCHED, this.isLaunched.toString());
+          if (this.startDate) {
+            localStorage.setItem(CONFIG.STORAGE_KEYS.START_DATE, this.startDate.toISOString());
+          }
+        } catch (e) {
+          console.warn('Failed to save to localStorage:', e);
+        }
+      },
+      
+      transitionToActive() {
+        this.currentState = CONFIG.STATES.ACTIVE;
+        this.isLaunched = true;
+        this.startDate = getUTCDayStart(new Date());
+        this.saveToStorage();
+      },
+      
+      transitionToCompleted() {
+        this.currentState = CONFIG.STATES.COMPLETED;
+        this.isCompleted = true;
+        this.saveToStorage();
+      },
+      
+      getCurrentDay() {
+        if (this.currentState === CONFIG.STATES.PRELAUNCH) return 0;
+        if (this.currentState === CONFIG.STATES.COMPLETED) return CONFIG.MAX_SUPPLY;
+        return calculateDaysElapsedFromStart(this.startDate);
+      },
+      
+      getReleasedTokens() {
+        if (this.currentState === CONFIG.STATES.PRELAUNCH) return 0;
+        if (this.currentState === CONFIG.STATES.COMPLETED) return CONFIG.MAX_SUPPLY;
+        return calculateDaysElapsedFromStart(this.startDate);
+      }
+    };
+
+    const DOM = {
+      supply: document.getElementById('supply'),
+      counter: document.getElementById('counter'),
+      clock: document.getElementById('clock'),
+      init: document.getElementById('init'),
+      adminInner: document.getElementById('adminInner'),
+      statusText: document.getElementById('statusText'),
+      preLaunchBadge: document.getElementById('preLaunchBadge'),
+      summaryText: document.getElementById('summaryText'),
+      roadmapList: document.getElementById('roadmapList'),
+      joinNeonText: document.getElementById('joinNeonText'),
+      asciiBox: document.getElementById('asciiBox'),
+      tickerContent: document.getElementById('tickerContent'),
+      countdownDisplay: document.getElementById('countdownDisplay'),
+      launchNotify: document.getElementById('launchNotify')
+    };
+
+    const UIUpdater = {
+      updateSummaryToActive() {
+        DOM.summaryText.innerHTML = `
+          Project109T is a limited 109-day token experiment designed around time, scarcity, and patience.<br><br>
+          <strong>✅ TOKEN RELEASE IS NOW ACTIVE.</strong> One new token unlocks every 24 hours — no pre-minting, no shortcuts. The system moves forward only, creating a clear timeline from D1 to D109.<br><br>
+          Early participants naturally hold the rarest positions, while later entries reflect the progression of the system over time. This creates a simple but powerful structure driven entirely by time.<br><br>
+          There are no complex mechanics — just a transparent release schedule, a fixed maximum supply, and a shared experience as each new day unlocks.
+        `;
+      },
+      
+      updateSummaryToCompleted() {
+        DOM.summaryText.innerHTML = `
+          Project109T is a limited 109-day token experiment designed around time, scarcity, and patience.<br><br>
+          <strong>🏁 EXPERIMENT COMPLETE.</strong> All 109 tokens have been released over 109 days. The full supply is now in circulation.<br><br>
+          This experiment has demonstrated a pure time-based scarcity model. No pre-minting, no shortcuts — just 109 days of transparent, scheduled releases.<br><br>
+          Thank you to all participants who were part of this journey from Day 1 to Day 109.
+        `;
+      },
+      
+      updateRoadmapToActive() {
+        DOM.roadmapList.innerHTML = `
+          <div class="roadmap-item">░ Day 1–10: Initial launch phase — early holders enter</div>
+          <div class="roadmap-item">░ Day 11–30: Awareness growth — community forming</div>
+          <div class="roadmap-item">░ Day 31–60: Mid-cycle — scarcity becomes visible</div>
+          <div class="roadmap-item">░ Day 61–90: Late phase — positions become rare</div>
+          <div class="roadmap-item">░ Day 91–109: Final stretch — maximum scarcity reached</div>
+          <div class="roadmap-item">░ Day 109: Completion — full supply unlocked</div>
+        `;
+        this.retriggerRoadmapAnimation();
+      },
+      
+      updateRoadmapToCompleted() {
+        DOM.roadmapList.innerHTML = `
+          <div class="roadmap-item">✅ Day 1–10: Initial launch phase — COMPLETED</div>
+          <div class="roadmap-item">✅ Day 11–30: Awareness growth — COMPLETED</div>
+          <div class="roadmap-item">✅ Day 31–60: Mid-cycle — COMPLETED</div>
+          <div class="roadmap-item">✅ Day 61–90: Late phase — COMPLETED</div>
+          <div class="roadmap-item">✅ Day 91–109: Final stretch — COMPLETED</div>
+          <div class="roadmap-item">🏁 Day 109: Full supply unlocked — EXPERIMENT COMPLETE</div>
+        `;
+        this.retriggerRoadmapAnimation();
+      },
+      
+      retriggerRoadmapAnimation() {
+        const items = document.querySelectorAll('#roadmapList .roadmap-item');
+        items.forEach((item, idx) => {
+          item.style.animation = 'none';
+          item.offsetHeight;
+          item.style.animation = `roadmapReveal 0.5s ease forwards ${idx * 0.1}s`;
+        });
+      },
+      
+      updateMiscUIToActive() {
+        if (DOM.preLaunchBadge) DOM.preLaunchBadge.style.display = 'none';
+        if (DOM.statusText) DOM.statusText.innerHTML = 'Status: ACTIVE (Daily Release)';
+        if (DOM.joinNeonText) DOM.joinNeonText.innerHTML = 'Joining 109 Club...';
+        
+        DOM.asciiBox.innerHTML = `╔══════════════════════════════════════╗
+║          PROJECT <span style="color:#ffffff; text-shadow:0 0 8px #ffffff;">109</span>T            ║
+╠══════════════════════════════════════╣
+║   ░ SYSTEM: DAILY TOKEN RELEASE      ║
+║   ░ MAX SUPPLY: 109                  ║
+╚══════════════════════════════════════╝`;
+        
+        DOM.tickerContent.innerHTML = `
+          SYS::ONLINE &nbsp;|&nbsp; TOKEN_RELEASE: ACTIVE &nbsp;|&nbsp; SUPPLY: UNLOCKING &nbsp;|&nbsp; SCARCITY_INDEX: RISING &nbsp;|&nbsp; CHAIN: SOLANA &nbsp;|&nbsp; PROTOCOL: D1→D109 &nbsp;|&nbsp; NODE: CONNECTED &nbsp;|&nbsp; PATIENCE: REQUIRED &nbsp;|&nbsp;
+          SYS::ONLINE &nbsp;|&nbsp; TOKEN_RELEASE: ACTIVE &nbsp;|&nbsp; SUPPLY: UNLOCKING &nbsp;|&nbsp; SCARCITY_INDEX: RISING &nbsp;|&nbsp; CHAIN: SOLANA &nbsp;|&nbsp; PROTOCOL: D1→D109 &nbsp;|&nbsp; NODE: CONNECTED &nbsp;|&nbsp; PATIENCE: REQUIRED &nbsp;|&nbsp;
+        `;
+      },
+      
+      updateMiscUIToCompleted() {
+        if (DOM.preLaunchBadge) DOM.preLaunchBadge.style.display = 'none';
+        if (DOM.statusText) DOM.statusText.innerHTML = 'Status: COMPLETED (All Tokens Released)';
+        if (DOM.joinNeonText) DOM.joinNeonText.innerHTML = 'Experiment Complete →';
+        
+        DOM.asciiBox.innerHTML = `╔══════════════════════════════════════╗
+║          PROJECT <span style="color:#ffffff; text-shadow:0 0 8px #ffffff;">109</span>T            ║
+╠══════════════════════════════════════╣
+║   ░ SYSTEM: EXPERIMENT COMPLETE      ║
+║   ░ MAX SUPPLY: 109 (RELEASED)       ║
+╚══════════════════════════════════════╝`;
+        
+        DOM.tickerContent.innerHTML = `
+          SYS::COMPLETE &nbsp;|&nbsp; TOKEN_RELEASE: FINISHED &nbsp;|&nbsp; SUPPLY: 109/109 &nbsp;|&nbsp; STATUS: EXPERIMENT_END &nbsp;|&nbsp; CHAIN: SOLANA &nbsp;|&nbsp; PROTOCOL: COMPLETE &nbsp;|&nbsp;
+          SYS::COMPLETE &nbsp;|&nbsp; TOKEN_RELEASE: FINISHED &nbsp;|&nbsp; SUPPLY: 109/109 &nbsp;|&nbsp; STATUS: EXPERIMENT_END &nbsp;|&nbsp; CHAIN: SOLANA &nbsp;|&nbsp; PROTOCOL: COMPLETE &nbsp;|&nbsp;
+        `;
+      },
+      
+      updateSupplyDisplay() {
+        const released = StateManager.getReleasedTokens();
+        const newSupplyText = `${released} / ${CONFIG.MAX_SUPPLY} tokens`;
+        
+        if (DOM.supply.innerText !== newSupplyText) {
+          DOM.supply.classList.add('bounce');
+          const onAnimEnd = () => {
+            DOM.supply.classList.remove('bounce');
+            DOM.supply.removeEventListener('animationend', onAnimEnd);
+          };
+          DOM.supply.addEventListener('animationend', onAnimEnd);
+        }
+        DOM.supply.innerText = newSupplyText;
+      },
+      
+      updateCounterDisplay() {
+        const day = StateManager.getCurrentDay();
+        DOM.counter.innerText = `Day ${day} / ${CONFIG.MAX_SUPPLY}`;
+      },
+      
+      updateAdminMessage(message) {
+        if (DOM.adminInner) {
+          DOM.adminInner.innerHTML = message;
+        }
+      },
+      
+      hideLaunchNotification() {
+        if (DOM.launchNotify) {
+          DOM.launchNotify.classList.add('hide');
+        }
+      }
+    };
+
+    const TimeCalculator = {
+      getTokenReleaseTimeLeft() {
+        if (StateManager.currentState !== CONFIG.STATES.ACTIVE) return '00:00:00';
+        if (!StateManager.startDate) return '00:00:00';
+        
+        const now = new Date();
+        const day = StateManager.getCurrentDay();
+        if (day >= CONFIG.MAX_SUPPLY) return '00:00:00';
+        
+        const nextRelease = getNextReleaseTime(StateManager.startDate, day);
+        let remaining = nextRelease - now;
+        if (remaining < 0) remaining = 0;
+        
+        const totalSeconds = Math.floor(remaining / 1000);
+        const h = Math.floor(totalSeconds / 3600);
+        const m = Math.floor((totalSeconds % 3600) / 60);
+        const s = totalSeconds % 60;
+        
+        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+      },
+      
+      updateClock() {
+        if (StateManager.currentState === CONFIG.STATES.PRELAUNCH) {
+          DOM.clock.innerText = 'Next Token In: 00:00:00';
+        } else if (StateManager.currentState === CONFIG.STATES.COMPLETED) {
+          DOM.clock.innerText = 'Next Token In: COMPLETE';
+        } else {
+          DOM.clock.innerText = `Next Token In: ${this.getTokenReleaseTimeLeft()}`;
+        }
+      }
+    };
+
+    const PreLaunchCountdown = {
+      lastDisplayedStr: '',
+      
+      update() {
+        if (StateManager.currentState !== CONFIG.STATES.PRELAUNCH) return;
+        
+        const now = Date.now();
+        const remaining = StateManager.launchTimestamp - now;
+        
+        if (remaining <= 0) {
+          this.handleLaunchTrigger();
+          return;
+        }
+        
+        const totalSec = Math.floor(remaining / 1000);
+        const days = Math.floor(totalSec / 86400);
+        const hours = Math.floor((totalSec % 86400) / 3600);
+        const mins = Math.floor((totalSec % 3600) / 60);
+        const secs = totalSec % 60;
+        
+        const countdownStr = `${days}d ${hours.toString().padStart(2, '0')}h ${mins.toString().padStart(2, '0')}m ${secs.toString().padStart(2, '0')}s`;
+        
+        if (DOM.countdownDisplay && DOM.countdownDisplay.innerText !== countdownStr) {
+          DOM.countdownDisplay.innerText = countdownStr;
+        }
+        
+        if (this.lastDisplayedStr !== countdownStr) {
+          this.lastDisplayedStr = countdownStr;
+          UIUpdater.updateAdminMessage(`⏳ PROJECT109T LAUNCHES IN:<br>${countdownStr}<br>Token supply frozen until then.`);
+        }
+      },
+      
+      handleLaunchTrigger() {
+        StateManager.transitionToActive();
+        
+        UIUpdater.updateSummaryToActive();
+        UIUpdater.updateRoadmapToActive();
+        UIUpdater.updateMiscUIToActive();
+        UIUpdater.hideLaunchNotification();
+        
+        UIUpdater.updateAdminMessage('🚀 Project109T is LIVE! First token released.<br>Daily unlocks begin now. Welcome to Day 1.');
+        
+        UIUpdater.updateSupplyDisplay();
+        UIUpdater.updateCounterDisplay();
+        TimeCalculator.updateClock();
+        
+        NotificationManager.enable();
+        IntervalManager.startActiveIntervals();
+      }
+    };
+
+    const NotificationManager = {
+      browserPermission: false,
+      
+      requestPermission() {
+        if ('Notification' in window) {
+          if (Notification.permission === 'default') {
+            Notification.requestPermission().then(perm => {
+              this.browserPermission = (perm === 'granted');
+            });
+          } else if (Notification.permission === 'granted') {
+            this.browserPermission = true;
+          }
+        }
+      },
+      
+      enable() {
+        this.requestPermission();
+        this.schedulePeriodic();
+      },
+      
+      sendBrowserNotification(title, body) {
+        if (this.browserPermission && 'Notification' in window && Notification.permission === 'granted') {
+          new Notification(title, { body, icon: 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Ccircle cx=\'50\' cy=\'50\' r=\'45\' fill=\'black\' stroke=\'white\' stroke-width=\'2\'/%3E%3Ctext x=\'50\' y=\'65\' font-family=\'monospace\' font-size=\'40\' fill=\'white\' text-anchor=\'middle\'%3E109%3C/text%3E%3C/svg%3E' });
+        }
+      },
+      
+      showToast(message, timeStr) {
+        if (StateManager.currentState !== CONFIG.STATES.ACTIVE) return;
+        
+        const container = document.getElementById('toastContainer');
+        if (!container) return;
+        
+        const toast = document.createElement('div');
+        toast.className = 'toast-notification';
+        toast.setAttribute('role', 'alert');
+        toast.innerHTML = `
+          <div class="toast-title">🔔 PROJECT109T ALERT</div>
+          <div class="toast-message">${message}</div>
+          <div class="toast-time">⏱️ ${timeStr}</div>
+          <div class="toast-close" aria-label="Close notification">✕</div>
+        `;
+        
+        container.appendChild(toast);
+        
+        const closeBtn = toast.querySelector('.toast-close');
+        closeBtn.addEventListener('click', () => {
+          toast.classList.remove('show');
+          setTimeout(() => toast.remove(), 300);
+        });
+        
+        setTimeout(() => toast.classList.add('show'), 10);
+        
+        setTimeout(() => {
+          if (toast.parentNode) {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+          }
+        }, 8000);
+      },
+      
+      schedulePeriodic() {
+        if (StateManager.currentState !== CONFIG.STATES.ACTIVE) return;
+        
+        const interval = Math.floor(Math.random() * (300000 - 180000 + 1) + 180000);
+        
+        setTimeout(() => {
+          if (StateManager.currentState === CONFIG.STATES.ACTIVE) {
+            const timeLeft = TimeCalculator.getTokenReleaseTimeLeft();
+            this.showToast('Next token release in:', timeLeft);
+            this.sendBrowserNotification('Project109T Token Alert', `Next token release in: ${timeLeft}`);
+            this.schedulePeriodic();
+          }
+        }, interval);
+      }
+    };
+
+    const IntervalManager = {
+      intervals: [],
+      
+      clearAll() {
+        this.intervals.forEach(id => clearInterval(id));
+        this.intervals = [];
+      },
+      
+      startPreLaunchIntervals() {
+        const countdownId = setInterval(() => PreLaunchCountdown.update(), 1000);
+        this.intervals.push(countdownId);
+      },
+      
+      startActiveIntervals() {
+        this.clearAll();
+        
+        const tokenUpdateId = setInterval(() => {
+          const day = StateManager.getCurrentDay();
+          
+          if (day >= CONFIG.MAX_SUPPLY && StateManager.currentState === CONFIG.STATES.ACTIVE) {
+            StateManager.transitionToCompleted();
+            UIUpdater.updateSummaryToCompleted();
+            UIUpdater.updateRoadmapToCompleted();
+            UIUpdater.updateMiscUIToCompleted();
+            UIUpdater.updateAdminMessage('🏁 EXPERIMENT COMPLETE<br>All 109 tokens have been released.<br>Thank you for participating in Project109T.');
+            UIUpdater.updateSupplyDisplay();
+            UIUpdater.updateCounterDisplay();
+            TimeCalculator.updateClock();
+            this.clearAll();
+            return;
+          }
+          
+          UIUpdater.updateSupplyDisplay();
+          UIUpdater.updateCounterDisplay();
+        }, 60000);
+        
+        const clockId = setInterval(() => TimeCalculator.updateClock(), 1000);
+        
+        this.intervals.push(tokenUpdateId, clockId);
+      }
+    };
+
+    function typeLine(el, text, speed = 30) {
+      el.innerHTML = '';
+      let i = 0;
+      function t() {
+        if (i < text.length) {
+          el.innerHTML += text[i];
+          i++;
+          setTimeout(t, speed);
+        }
+      }
+      t();
+    }
+    
+    function setupWalletConnection() {
+      document.getElementById('connectWallet').onclick = async (e) => {
+        e.preventDefault();
+        try {
+          if (window.solana && window.solana.isPhantom) {
+            const res = await window.solana.connect();
+            const shortAddr = `${res.publicKey.toString().slice(0, 4)}...${res.publicKey.toString().slice(-4)}`;
+            document.getElementById('connectWallet').innerText = `[ ${shortAddr} ]`;
+          } else {
+            window.open('https://phantom.app/', '_blank');
+          }
+        } catch (err) {
+          console.warn('Wallet connection failed:', err);
+        }
+      };
+    }
+    
+    function setupNotificationClose() {
+      const closeBtn = document.getElementById('closeNotifyBtn');
+      if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+          if (DOM.launchNotify) DOM.launchNotify.classList.add('hide');
+        });
+      }
+    }
+    
+    function initialize() {
+      StateManager.initialize();
+      
+      typeLine(DOM.init, 'Project109T pre-launch mode active. Countdown to Day 1...');
+      
+      if (StateManager.currentState === CONFIG.STATES.PRELAUNCH) {
+        DOM.supply.innerText = `0 / ${CONFIG.MAX_SUPPLY} tokens`;
+        DOM.counter.innerText = `Day 0 / ${CONFIG.MAX_SUPPLY}`;
+        DOM.clock.innerText = 'Next Token In: 00:00:00';
+        IntervalManager.startPreLaunchIntervals();
+        PreLaunchCountdown.update();
+      } else if (StateManager.currentState === CONFIG.STATES.ACTIVE) {
+        UIUpdater.updateSummaryToActive();
+        UIUpdater.updateRoadmapToActive();
+        UIUpdater.updateMiscUIToActive();
+        UIUpdater.hideLaunchNotification();
+        UIUpdater.updateAdminMessage('🚀 Project109T is LIVE! Daily unlocks in progress.');
+        UIUpdater.updateSupplyDisplay();
+        UIUpdater.updateCounterDisplay();
+        TimeCalculator.updateClock();
+        NotificationManager.enable();
+        IntervalManager.startActiveIntervals();
+      } else if (StateManager.currentState === CONFIG.STATES.COMPLETED) {
+        UIUpdater.updateSummaryToCompleted();
+        UIUpdater.updateRoadmapToCompleted();
+        UIUpdater.updateMiscUIToCompleted();
+        UIUpdater.hideLaunchNotification();
+        UIUpdater.updateAdminMessage('🏁 EXPERIMENT COMPLETE<br>All 109 tokens have been released.');
+        UIUpdater.updateSupplyDisplay();
+        UIUpdater.updateCounterDisplay();
+        TimeCalculator.updateClock();
+      }
+      
+      setupWalletConnection();
+      setupNotificationClose();
+    }
+    
+    window.addEventListener('beforeunload', () => {
+      IntervalManager.clearAll();
+    });
+    
+    initialize();
+
+  })();
+  </script>
+
+  <!-- Token Tracker Script (integrated, working) -->
+  <script>
+  (function() {
+    'use strict';
+
+    // Wait for Solana libraries to be available
+    const checkLibraries = setInterval(() => {
+      if (window.solanaWeb3 && window.splToken) {
+        clearInterval(checkLibraries);
+        initTokenTracker();
+      }
+    }, 100);
+
+    function initTokenTracker() {
+      const { Connection, PublicKey } = window.solanaWeb3;
+      const { getMint, AccountLayout, TOKEN_PROGRAM_ID } = window.splToken;
+
+      // RPC endpoints (Helius public demo + fallback)
+      const RPC_URL = 'https://mainnet.helius-rpc.com/?api-key=8dae9910-6f9b-4b6a-8a23-7d46e1e2a6d0';
+      const FALLBACK_RPC = 'https://api.mainnet-beta.solana.com';
+      
+      let connection = new Connection(RPC_URL, 'confirmed');
+
+      const mintInput = document.getElementById('mintInput');
+      const fetchBtn = document.getElementById('fetchHoldersBtn');
+      const loadingDiv = document.getElementById('holderLoading');
+      const resultsDiv = document.getElementById('holderResults');
+
+      if (!mintInput || !fetchBtn) {
+        console.warn('Token tracker elements not found – feature disabled.');
+        return;
+      }
+
+      function shortenAddress(addr) {
+        return addr.slice(0, 6) + '...' + addr.slice(-4);
+      }
+
+      function renderHolders(holders, totalSupplyNum, decimals) {
+        if (!holders.length) {
+          resultsDiv.innerHTML = `<div style="font-size:12px; opacity:0.6; text-align:center; padding:12px;">No holders found or zero balances.</div>`;
+          return;
+        }
+
+        let html = `
+          <table style="width:100%; border-collapse:collapse; color:#fff; font-size:11px; font-family:'JetBrains Mono',monospace;">
+            <thead>
+              <tr style="border-bottom:1px solid #fff; opacity:0.8;">
+                <th style="text-align:left; padding:6px 4px;">HOLDER</th>
+                <th style="text-align:right; padding:6px 4px;">BALANCE</th>
+                <th style="text-align:right; padding:6px 4px;">%</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        for (const h of holders) {
+          html += `
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+              <td style="padding:6px 4px;" title="${h.owner}">${shortenAddress(h.owner)}</td>
+              <td style="text-align:right; padding:6px 4px;">${h.amount.toLocaleString(undefined, {maximumFractionDigits: decimals})}</td>
+              <td style="text-align:right; padding:6px 4px;">${h.percentage.toFixed(4)}%</td>
+            </tr>
+          `;
+        }
+
+        html += `</tbody></table>`;
+        resultsDiv.innerHTML = html;
+      }
+
+      async function fetchTokenHolders(mintAddress) {
+        loadingDiv.style.display = 'block';
+        resultsDiv.innerHTML = '';
+
+        try {
+          const mintPubkey = new PublicKey(mintAddress);
+          let mintInfo;
+          
+          try {
+            mintInfo = await getMint(connection, mintPubkey);
+          } catch (e) {
+            console.warn('Primary RPC failed, switching to fallback');
+            connection = new Connection(FALLBACK_RPC, 'confirmed');
+            mintInfo = await getMint(connection, mintPubkey);
+          }
+
+          const decimals = mintInfo.decimals;
+          const supply = mintInfo.supply; // bigint
+
+          // Fetch all token accounts for this mint
+          const accounts = await connection.getProgramAccounts(
+            TOKEN_PROGRAM_ID,
+            {
+              filters: [
+                { dataSize: 165 }, // Token account size
+                { memcmp: { offset: 0, bytes: mintAddress } }
+              ]
+            }
+          );
+
+          const holders = [];
+          const totalSupplyNum = Number(supply) / Math.pow(10, decimals);
+
+          for (const { account } of accounts) {
+            const data = account.data;
+            const decoded = AccountLayout.decode(data);
+            const amount = Number(decoded.amount) / Math.pow(10, decimals);
+            
+            if (amount === 0) continue; // Skip zero balances
+
+            const owner = new PublicKey(decoded.owner).toBase58();
+            holders.push({ owner, amount });
+          }
+
+          // Sort by balance descending (largest to smallest)
+          holders.sort((a, b) => b.amount - a.amount);
+
+          // Calculate percentages
+          const enrichedHolders = holders.map(h => ({
+            ...h,
+            percentage: (h.amount / totalSupplyNum) * 100,
+          }));
+
+          renderHolders(enrichedHolders, totalSupplyNum, decimals);
+
+        } catch (error) {
+          console.error('Error fetching holders:', error);
+          resultsDiv.innerHTML = `
+            <div style="color:#ff5f56; padding:12px; font-size:12px; border:1px solid #ff5f56; border-radius:4px;">
+              ⚠️ Error: ${error.message}<br>
+              <span style="opacity:0.7;">Check mint address or network.</span>
+            </div>
+          `;
+        } finally {
+          loadingDiv.style.display = 'none';
+        }
+      }
+
+      // Event listeners
+      fetchBtn.addEventListener('click', () => {
+        const mint = mintInput.value.trim();
+        if (!mint) {
+          resultsDiv.innerHTML = `<div style="color:#ffbd2e; padding:8px; font-size:12px;">Please enter a mint address.</div>`;
+          return;
+        }
+        fetchTokenHolders(mint);
+      });
+
+      mintInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          fetchBtn.click();
+        }
+      });
+    }
+  })();
+  </script>
+
+</body>
+</html>
