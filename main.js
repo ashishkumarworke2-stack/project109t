@@ -1,1 +1,1 @@
-const RPC_URL = 'https://mainnet.helius-rpc.com/?api-key=70da5c4d-b87b-4842-bfd5-a9977e4aed1c';
+const RPC_URL = 'wss://mainnet.helius-rpc.com/?api-key=70da5c4d-b87b-4842-bfd5-a9977e4aed1c';
