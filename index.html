@@ -347,6 +347,16 @@
       background: rgba(255,255,255,0.2);
       border-color: white;
     }
+    .fixed-token-address {
+      background: #0f1115;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-family: monospace;
+      margin-bottom: 12px;
+      border-left: 3px solid #00ffcc;
+      word-break: break-all;
+    }
   </style>
   <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
   <script src="https://unpkg.com/@solana/spl-token@latest/lib/index.iife.min.js"></script>
@@ -358,7 +368,7 @@
   <div class="terminal">
     <div class="corner-bracket tl"></div><div class="corner-bracket tr"></div>
     <div class="corner-bracket bl"></div><div class="corner-bracket br"></div>
-    <div class="data-ticker"><span class="data-ticker-inner" id="tickerContent">⚡ TOKEN VIEWER MODULE ACTIVE ⚡ | SOLANA TOKEN METADATA + HOLDERS | SUPPLY TRACKER | DECODER ONLINE ⚡</span></div>
+    <div class="data-ticker"><span class="data-ticker-inner" id="tickerContent">⚡ TOKEN VIEWER ACTIVE ⚡ | B7aNmmvPANVuqKgnEMAJzY6sUB6pcebZCxWUqzvApump | HOLDER DATA LIVE ⚡</span></div>
 
     <div class="terminal-header"><div class="dot red"></div><div class="dot yellow"></div><div class="dot green"></div></div>
 
@@ -373,17 +383,16 @@
                 project<span style="text-shadow:0 0 10px #ffffff;">109</span>t.fun • TOKEN VIEWER
 </pre>
 
-    <!-- ========== TOKEN VIEWING MODULE (INTEGRATED) ========== -->
+    <!-- ========== TOKEN VIEWER (HARDCODED ADDRESS) ========== -->
     <div style="margin-top: 20px; border: 1px solid rgba(255,255,255,0.2); border-radius: 10px; padding: 16px; background: #000000cc;">
       <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
         <div style="font-size: 14px; font-weight: bold; letter-spacing: 1px;">🔍 TOKEN VIEWER <span style="font-size: 9px; opacity:0.6;">[SOLANA]</span></div>
         <div id="pricePreview" style="font-size: 10px;"></div>
       </div>
 
-      <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px;">
-        <input type="text" id="tokenMintInput" placeholder="Token mint address (ex: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v)" 
-               style="flex: 3; min-width: 240px; background:#000; border:1px solid #fff; color:#fff; padding:12px; font-family: monospace; font-size: 13px; border-radius: 6px;">
-        <button id="loadTokenBtn" class="button" style="margin-top:0;">[ LOAD TOKEN DATA ]</button>
+      <div class="fixed-token-address">
+        📍 <strong>Target Token (auto-loaded)</strong><br>
+        <code>B7aNmmvPANVuqKgnEMAJzY6sUB6pcebZCxWUqzvApump</code>
       </div>
 
       <!-- Token info panel -->
@@ -402,17 +411,17 @@
       <!-- Holder section -->
       <div style="margin-top: 8px;">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
-          <span style="font-size: 12px; opacity:0.8;">📦 TOP HOLDERS (by balance)</span>
+          <span style="font-size: 12px; opacity:0.8;">📦 TOKEN HOLDERS (by balance)</span>
           <div id="holderSortControls" style="display: flex; gap: 6px;"></div>
         </div>
         <div id="holderLoadingMsg" class="loading-spinner" style="display: none;"><span class="cursor" style="width:8px; height:14px;"></span> Fetching on-chain holders...</div>
         <div id="holderResultsContainer" class="holder-table-wrapper">
-          <div style="text-align:center; padding:20px; opacity:0.5;">Enter a mint address and click LOAD TOKEN DATA</div>
+          <div style="text-align:center; padding:20px; opacity:0.5;">Loading token data...</div>
         </div>
       </div>
     </div>
 
-    <!-- Rest of project109t original interface (prelaunch, roadmap, etc) -->
+    <!-- Rest of project109t original interface -->
     <div class="line prompt" id="init"></div>
     <div class="line prompt">Total Released: <span class="highlight supply-update" id="supply">0 / 109 tokens</span> <span class="pre-launch-badge" id="preLaunchBadge">PRE-LAUNCH</span></div>
     <div class="line prompt clock-pulse" id="clock">Next Token In: --:--:--</div>
@@ -449,26 +458,25 @@
   </script>
 
   <script>
-    // ==================== TOKEN VIEWING MODULE (COMPLETE) ====================
-    (function tokenViewerModule() {
-      const web3 = window.solanaWeb3;
-      const spl = window.splToken;
-      if (!web3 || !spl) { console.warn("Solana libs not loaded yet"); setTimeout(() => tokenViewerModule(), 300); return; }
-
-      const { Connection, PublicKey } = web3;
-      const { getMint, AccountLayout, TOKEN_PROGRAM_ID } = spl;
-
-      const RPC_MAIN = 'https://mainnet.helius-rpc.com/?api-key=8dae9910-6f9b-4b6a-8a23-7d46e1e2a6d0';
-      const RPC_FALLBACK = 'https://api.mainnet-beta.solana.com';
-      let connection = new Connection(RPC_MAIN, 'confirmed');
-
-      const METADATA_PROGRAM_ID = new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
-
+    // ==================== DEDICATED TOKEN VIEWER (HARDCODED ADDRESS) ====================
+    (function tokenViewerFixed() {
+      const TOKEN_MINT = "B7aNmmvPANVuqKgnEMAJzY6sUB6pcebZCxWUqzvApump";
+      
+      // Public RPC endpoints (no API key needed)
+      const RPC_URLS = [
+        "https://api.mainnet-beta.solana.com",
+        "https://solana-api.projectserum.com",
+        "https://rpc.ankr.com/solana"
+      ];
+      let connection = null;
+      
+      let allHolders = [];
+      let currentDecimals = 0;
+      let totalSupplyNum = 0;
+      let sortField = 'amount';
+      let sortDirection = 'desc';
+      
       // DOM elements
-      const mintInput = document.getElementById('tokenMintInput');
-      const loadBtn = document.getElementById('loadTokenBtn');
-      const holderContainer = document.getElementById('holderResultsContainer');
-      const holderLoading = document.getElementById('holderLoadingMsg');
       const tokenNameSpan = document.getElementById('tokenName');
       const tokenSymbolSpan = document.getElementById('tokenSymbol');
       const tokenDecimalsSpan = document.getElementById('tokenDecimals');
@@ -476,28 +484,38 @@
       const mintAuthoritySpan = document.getElementById('mintAuthority');
       const freezeAuthoritySpan = document.getElementById('freezeAuthority');
       const metadataUriSpan = document.getElementById('metadataUri');
-      const pricePreviewSpan = document.getElementById('pricePreview');
+      const holderContainer = document.getElementById('holderResultsContainer');
+      const holderLoading = document.getElementById('holderLoadingMsg');
       const sortControlsDiv = document.getElementById('holderSortControls');
-
-      let currentHolders = [];      // enriched holder objects
-      let currentDecimals = 0;
-      let currentSupplyRaw = 0n;
-      let currentMintPubkey = null;
-      let sortField = 'amount';
-      let sortDirection = 'desc';
-
+      const pricePreviewSpan = document.getElementById('pricePreview');
+      
       function shortAddress(addr) { return addr.slice(0,5)+'…'+addr.slice(-4); }
-
-      async function fetchTokenMetadata(mintPubkey) {
+      
+      async function getConnection() {
+        if (connection) return connection;
+        for (const url of RPC_URLS) {
+          try {
+            const conn = new solanaWeb3.Connection(url, 'confirmed');
+            await conn.getVersion();
+            connection = conn;
+            console.log(`✅ Connected to ${url}`);
+            return connection;
+          } catch(e) { console.warn(`RPC fail ${url}`, e); }
+        }
+        throw new Error("No RPC available");
+      }
+      
+      async function fetchMetadata(mintPubkey, conn) {
+        const METADATA_PROGRAM_ID = new solanaWeb3.PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
+        const [metadataPDA] = await solanaWeb3.PublicKey.findProgramAddressSync(
+          [Buffer.from("metadata"), METADATA_PROGRAM_ID.toBuffer(), mintPubkey.toBuffer()],
+          METADATA_PROGRAM_ID
+        );
         try {
-          const [metadataPDA] = await PublicKey.findProgramAddressSync(
-            [Buffer.from("metadata"), METADATA_PROGRAM_ID.toBuffer(), mintPubkey.toBuffer()],
-            METADATA_PROGRAM_ID
-          );
-          const accountInfo = await connection.getAccountInfo(metadataPDA);
-          if (!accountInfo) return { name: '—', symbol: '—', uri: '—' };
-          const data = accountInfo.data;
-          let offset = 1 + 32 + 32; // key + update auth + mint
+          const acc = await conn.getAccountInfo(metadataPDA);
+          if (!acc) return { name: '—', symbol: '—', uri: '—' };
+          const data = acc.data;
+          let offset = 1 + 32 + 32;
           const nameLen = data[offset]; offset++;
           const name = data.slice(offset, offset+nameLen).toString('utf8').replace(/\x00/g, '');
           offset += nameLen;
@@ -507,48 +525,46 @@
           const uriLen = data[offset]; offset++;
           const uri = data.slice(offset, offset+uriLen).toString('utf8').replace(/\x00/g, '');
           return { name: name || '—', symbol: symbol || '—', uri: uri || '—' };
-        } catch(e) { console.warn("metadata error",e); return { name: 'Error', symbol: '—', uri: '—' }; }
+        } catch(e) { return { name: '—', symbol: '—', uri: '—' }; }
       }
-
+      
       async function fetchPrice(mintAddr) {
         try {
           const res = await fetch(`https://quote-api.jup.ag/v6/price?ids=${mintAddr}`);
           const data = await res.json();
           const price = data.data?.[mintAddr]?.price;
-          if(price) return `💰 $${parseFloat(price).toFixed(6)}`;
-          return '';
+          return price ? `💰 $${parseFloat(price).toFixed(6)}` : '';
         } catch(e) { return ''; }
       }
-
-      async function fetchHolders(mintAddress) {
-        try {
-          const mintPub = new PublicKey(mintAddress);
-          const accounts = await connection.getProgramAccounts(TOKEN_PROGRAM_ID, {
-            filters: [{ dataSize: 165 }, { memcmp: { offset: 0, bytes: mintAddress } }]
-          });
-          const decimals = currentDecimals;
-          const holderMap = new Map();
-          for (const { account } of accounts) {
-            const decoded = AccountLayout.decode(account.data);
-            const amount = Number(decoded.amount) / Math.pow(10, decimals);
-            if (amount <= 0) continue;
-            const owner = new PublicKey(decoded.owner).toBase58();
-            holderMap.set(owner, (holderMap.get(owner) || 0) + amount);
-          }
-          let holders = Array.from(holderMap.entries()).map(([owner, amount]) => ({ owner, amount }));
-          holders.sort((a,b) => b.amount - a.amount);
-          const totalSupplyNum = Number(currentSupplyRaw) / Math.pow(10, decimals);
-          return holders.map((h, idx) => ({ ...h, rank: idx+1, percentage: (h.amount / totalSupplyNum) * 100 }));
-        } catch(e) { throw new Error(`Holder fetch failed: ${e.message}`); }
+      
+      async function fetchHolders(mintAddress, conn, dec, totalSupply) {
+        const TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+        const accounts = await conn.getProgramAccounts(TOKEN_PROGRAM_ID, {
+          filters: [{ dataSize: 165 }, { memcmp: { offset: 0, bytes: mintAddress } }]
+        });
+        const holderMap = new Map();
+        for (const { account } of accounts) {
+          const decoded = splToken.AccountLayout.decode(account.data);
+          const amount = Number(decoded.amount) / Math.pow(10, dec);
+          if (amount <= 0) continue;
+          const owner = new solanaWeb3.PublicKey(decoded.owner).toBase58();
+          holderMap.set(owner, (holderMap.get(owner) || 0) + amount);
+        }
+        let holders = Array.from(holderMap.entries()).map(([owner, amount]) => ({ owner, amount }));
+        holders.sort((a,b) => b.amount - a.amount);
+        return holders.map((h, idx) => ({ ...h, rank: idx+1, percentage: (h.amount / totalSupply) * 100 }));
       }
-
-      function renderHoldersTable(holders, decimals) {
-        if (!holders.length) { holderContainer.innerHTML = '<div style="text-align:center;padding:20px;">No holders with positive balance found.</div>'; return; }
-        let sorted = [...holders];
+      
+      function renderHoldersTable() {
+        if (!allHolders.length) {
+          holderContainer.innerHTML = '<div style="text-align:center;padding:20px;">No holders with positive balance found.</div>';
+          return;
+        }
+        let sorted = [...allHolders];
         if(sortField === 'amount') sorted.sort((a,b) => sortDirection === 'desc' ? b.amount - a.amount : a.amount - b.amount);
         else if(sortField === 'rank') sorted.sort((a,b) => sortDirection === 'asc' ? a.rank - b.rank : b.rank - a.rank);
         else if(sortField === 'percentage') sorted.sort((a,b) => sortDirection === 'desc' ? b.percentage - a.percentage : a.percentage - b.percentage);
-
+        
         let html = `<table style="width:100%"><thead><tr>
           <th style="cursor:pointer;" data-sort="rank">#</th>
           <th>HOLDER</th><th style="cursor:pointer;" data-sort="amount">BALANCE</th>
@@ -556,41 +572,39 @@
         </tr></thead><tbody>`;
         for(let h of sorted) {
           html += `<tr><td style="opacity:0.6;">${h.rank}</td><td title="${h.owner}">${shortAddress(h.owner)}</td>
-          <td style="text-align:right;">${h.amount.toLocaleString(undefined, {maximumFractionDigits: decimals})}</td>
+          <td style="text-align:right;">${h.amount.toLocaleString(undefined, {maximumFractionDigits: currentDecimals})}</td>
           <td style="text-align:right;">${h.percentage.toFixed(4)}%</td></tr>`;
         }
         html += `</tbody></table>`;
         holderContainer.innerHTML = html;
         document.querySelectorAll('th[data-sort]').forEach(th => {
-          th.addEventListener('click', (e) => {
+          th.addEventListener('click', () => {
             const field = th.getAttribute('data-sort');
             if(sortField === field) sortDirection = sortDirection === 'desc' ? 'asc' : 'desc';
             else { sortField = field; sortDirection = (field === 'rank') ? 'asc' : 'desc'; }
-            renderHoldersTable(currentHolders, currentDecimals);
+            renderHoldersTable();
             updateSortButtons();
           });
         });
       }
-
+      
       function updateSortButtons() {
         sortControlsDiv.innerHTML = `
           <button class="sort-btn ${sortField==='amount'?'active':''}" data-sort="amount">💎 Balance ${sortField==='amount'?(sortDirection==='desc'?'▼':'▲'):'⇅'}</button>
           <button class="sort-btn ${sortField==='rank'?'active':''}" data-sort="rank">🏆 Rank ${sortField==='rank'?(sortDirection==='asc'?'▲':'▼'):'⇅'}</button>
           <button class="sort-btn ${sortField==='percentage'?'active':''}" data-sort="percentage">📊 % Supply ${sortField==='percentage'?(sortDirection==='desc'?'▼':'▲'):'⇅'}</button>`;
         document.querySelectorAll('.sort-btn').forEach(btn => {
-          btn.addEventListener('click', (e) => {
+          btn.addEventListener('click', () => {
             const field = btn.getAttribute('data-sort');
             if(sortField === field) sortDirection = sortDirection === 'desc' ? 'asc' : 'desc';
             else { sortField = field; sortDirection = (field === 'rank') ? 'asc' : 'desc'; }
-            renderHoldersTable(currentHolders, currentDecimals);
+            renderHoldersTable();
             updateSortButtons();
           });
         });
       }
-
+      
       async function loadTokenData() {
-        let mintAddr = mintInput.value.trim();
-        if (!mintAddr) { holderContainer.innerHTML = '<div style="color:#ffbd2e;">Enter a mint address</div>'; return; }
         holderLoading.style.display = 'flex';
         holderContainer.innerHTML = '';
         tokenNameSpan.innerText = '⟳ loading...';
@@ -598,49 +612,44 @@
         mintAuthoritySpan.innerText = '—'; freezeAuthoritySpan.innerText = '—'; metadataUriSpan.innerText = '—';
         pricePreviewSpan.innerText = '';
         try {
-          let mintPubkey = new PublicKey(mintAddr);
-          currentMintPubkey = mintPubkey;
-          let mintInfo;
-          try { mintInfo = await getMint(connection, mintPubkey); } catch(rpcErr) {
-            connection = new Connection(RPC_FALLBACK, 'confirmed');
-            mintInfo = await getMint(connection, mintPubkey);
-          }
+          const conn = await getConnection();
+          const mintPubkey = new solanaWeb3.PublicKey(TOKEN_MINT);
+          const mintInfo = await splToken.getMint(conn, mintPubkey);
           currentDecimals = mintInfo.decimals;
-          currentSupplyRaw = mintInfo.supply;
-          const formattedSupply = (Number(mintInfo.supply) / Math.pow(10, mintInfo.decimals)).toLocaleString(undefined, {maximumFractionDigits: mintInfo.decimals});
-          tokenDecimalsSpan.innerText = mintInfo.decimals;
-          tokenSupplySpan.innerText = `${formattedSupply} ◎ (raw: ${mintInfo.supply})`;
+          totalSupplyNum = Number(mintInfo.supply) / Math.pow(10, currentDecimals);
+          tokenDecimalsSpan.innerText = currentDecimals;
+          tokenSupplySpan.innerText = `${totalSupplyNum.toLocaleString()} (${mintInfo.supply} raw)`;
           mintAuthoritySpan.innerText = mintInfo.mintAuthority ? mintInfo.mintAuthority.toBase58() : 'None (immutable)';
           freezeAuthoritySpan.innerText = mintInfo.freezeAuthority ? mintInfo.freezeAuthority.toBase58() : 'None';
-
-          const metadata = await fetchTokenMetadata(mintPubkey);
+          
+          const metadata = await fetchMetadata(mintPubkey, conn);
           tokenNameSpan.innerText = metadata.name;
           tokenSymbolSpan.innerText = metadata.symbol;
           metadataUriSpan.innerText = metadata.uri !== '—' ? (metadata.uri.length > 48 ? metadata.uri.slice(0,45)+'…' : metadata.uri) : '—';
           
-          const priceStr = await fetchPrice(mintAddr);
+          const priceStr = await fetchPrice(TOKEN_MINT);
           if(priceStr) pricePreviewSpan.innerHTML = `<span class="price-badge">${priceStr}</span>`;
-
-          const holders = await fetchHolders(mintAddr);
-          currentHolders = holders;
-          renderHoldersTable(currentHolders, currentDecimals);
+          
+          const holders = await fetchHolders(TOKEN_MINT, conn, currentDecimals, totalSupplyNum);
+          allHolders = holders;
+          renderHoldersTable();
           updateSortButtons();
         } catch(err) {
           console.error(err);
-          holderContainer.innerHTML = `<div style="color:#ff5f56; padding:12px;">⚠️ Error: ${err.message}<br>Invalid mint or network issue.</div>`;
+          holderContainer.innerHTML = `<div style="color:#ff5f56; padding:12px;">⚠️ Error: ${err.message}<br>Check console or network.</div>`;
           tokenNameSpan.innerText = 'Error';
         } finally {
           holderLoading.style.display = 'none';
         }
       }
-
-      loadBtn.addEventListener('click', loadTokenData);
-      mintInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') loadTokenData(); });
-      // example default hint
-      mintInput.placeholder = "Token mint (e.g., EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v for USDC)";
+      
+      // Auto-load on page load
+      window.addEventListener('load', loadTokenData);
+      // Auto-refresh every 45 seconds
+      setInterval(() => { if(allHolders.length) loadTokenData(); }, 45000);
     })();
-
-    // ==================== EXISTING PROJECT109T LOGIC (PRESERVED) ====================
+    
+    // ==================== PROJECT109T CORE (PRESERVED) ====================
     (function projectCore() {
       const CONFIG = { MAX_SUPPLY: 109, PRELAUNCH_DAYS: 7 };
       let state = { currentState: 'prelaunch', launchTimestamp: Date.now() + 7*86400000, startDate: null };
@@ -657,23 +666,42 @@
           DOM.counter.innerText = `Day 0 / ${CONFIG.MAX_SUPPLY}`;
           DOM.clock.innerText = 'Next Token In: 00:00:00';
           DOM.statusText.innerText = 'Status: PRE-LAUNCH (Countdown Active)';
-          DOM.preLaunchBadge.style.display = 'inline-block';
+          if(DOM.preLaunchBadge) DOM.preLaunchBadge.style.display = 'inline-block';
           DOM.summaryText.innerHTML = `Project109T is a limited 109-day token experiment.<br><strong>📅 PRE-LAUNCH: first token in ${CONFIG.PRELAUNCH_DAYS} days.</strong>`;
-          DOM.roadmapList.innerHTML = `<div class="roadmap-item">░ Pre-Launch (7 days) — Countdown / Zero supply</div><div class="roadmap-item">░ Day 1–10: Initial launch phase</div>...`;
+          DOM.roadmapList.innerHTML = `<div class="roadmap-item">░ Pre-Launch (7 days) — Countdown / Zero supply</div><div class="roadmap-item">░ Day 1–10: Initial launch phase</div><div class="roadmap-item">░ Day 11–30: Awareness growth</div><div class="roadmap-item">░ Day 31–60: Mid-cycle</div><div class="roadmap-item">░ Day 61–90: Late phase</div><div class="roadmap-item">░ Day 91–109: Final stretch</div>`;
           const remaining = state.launchTimestamp - Date.now();
           if(remaining>0 && DOM.countdownDisplay) {
             let d=Math.floor(remaining/86400000), h=Math.floor((remaining%86400000)/3600000);
             DOM.countdownDisplay.innerText = `${d}d ${h}h pre-launch`;
           }
-        } else if(state.currentState === 'active') { /* minimal active state placeholder */ }
+        }
       }
       function tick() { if(state.currentState==='prelaunch' && Date.now()>=state.launchTimestamp) state.currentState='active'; updateUI(); }
       setInterval(tick,1000); updateUI();
       document.getElementById('closeNotifyBtn')?.addEventListener('click',()=>DOM.launchNotify?.classList.add('hide'));
-      document.getElementById('connectWallet')?.addEventListener('click',async(e)=>{
-        e.preventDefault(); if(window.solana?.isPhantom) await window.solana.connect();
-        else window.open('https://phantom.app/','_blank');
-      });
+      
+      // Enhanced wallet connection using Phantom (working)
+      const walletBtn = document.getElementById('connectWallet');
+      if(walletBtn) {
+        walletBtn.addEventListener('click', async (e) => {
+          e.preventDefault();
+          if (!window.solana || !window.solana.isPhantom) {
+            alert("Phantom wallet not installed. Get it from https://phantom.app/");
+            window.open("https://phantom.app/", "_blank");
+            return;
+          }
+          try {
+            const resp = await window.solana.connect();
+            const pubKey = resp.publicKey.toString();
+            walletBtn.innerText = `🔗 ${pubKey.slice(0,5)}…${pubKey.slice(-4)}`;
+          } catch(err) { console.warn("Wallet connect cancelled", err); }
+        });
+        // check if already connected
+        if(window.solana && window.solana.isConnected) {
+          const pubKey = window.solana.publicKey.toString();
+          walletBtn.innerText = `🔗 ${pubKey.slice(0,5)}…${pubKey.slice(-4)}`;
+        }
+      }
     })();
   </script>
 </body>
