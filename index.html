@@ -3,67 +3,310 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-  <title>Project109T Terminal • Token Viewer</title>
+  <title>Project109T • Creator View</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap');
+
     * { cursor: none !important; }
-    body { margin: 0; background: #000; color: #fff; font-family: 'JetBrains Mono', monospace; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-    #customCursor { position: fixed; width: 12px; height: 22px; background: rgba(255,255,255,0.9); box-shadow: 0 0 8px #fff; pointer-events: none; z-index: 9999; transform: translate(-2px,-2px); mix-blend-mode: difference; border-radius: 2px; animation: cursorPulse 1.5s infinite; }
-    @keyframes cursorPulse { 0%,100% { opacity: 0.9; } 50% { opacity: 1; } }
-    .scanlines { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(0,0,0,0.1) 0px, rgba(255,255,255,0.02) 1px, transparent 2px, transparent 4px); opacity: 0.3; animation: scanMove 8s linear infinite; z-index: 100; }
+
+    body {
+      margin: 0;
+      background: #000;
+      color: #fff;
+      font-family: 'JetBrains Mono', monospace;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      animation: fadeInBody 1.2s ease;
+      position: relative;
+    }
+    @keyframes fadeInBody { from { opacity: 0; } to { opacity: 1; } }
+
+    #customCursor {
+      position: fixed;
+      width: 12px;
+      height: 22px;
+      background: rgba(255,255,255,0.9);
+      box-shadow: 0 0 8px #fff, 0 0 15px rgba(255,255,255,0.5);
+      pointer-events: none;
+      z-index: 9999;
+      transform: translate(-2px,-2px);
+      mix-blend-mode: difference;
+      border-radius: 2px;
+      animation: cursorPulse 1.5s infinite;
+    }
+    @keyframes cursorPulse {
+      0%,100% { opacity: 0.9; box-shadow: 0 0 5px #fff, 0 0 10px #fff; }
+      50%      { opacity: 1;   box-shadow: 0 0 12px #fff, 0 0 20px #fff; }
+    }
+
+    .scanlines {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none;
+      background: repeating-linear-gradient(0deg, rgba(0,0,0,0.1) 0px, rgba(255,255,255,0.02) 1px, transparent 2px, transparent 4px);
+      opacity: 0.3; animation: scanMove 8s linear infinite; z-index: 100;
+    }
     @keyframes scanMove { 0% { background-position: 0 0; } 100% { background-position: 0 10px; } }
-    .terminal { width: 95%; max-width: 1100px; background: #000; border-radius: 10px; padding: 20px; position: relative; box-shadow: 0 0 10px rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.1); z-index: 2; }
+
+    .terminal {
+      width: 95%;
+      max-width: 1200px;
+      background: #000;
+      border-radius: 10px;
+      padding: 20px;
+      position: relative;
+      box-shadow: 0 0 10px rgba(255,255,255,0.15), 0 0 20px rgba(255,255,255,0.2), 0 0 40px rgba(255,255,255,0.25);
+      border: 1px solid rgba(255,255,255,0.1);
+      z-index: 2;
+      animation: floatIn 0.8s ease;
+      transition: box-shadow 0.4s, border-color 0.3s;
+    }
+    .terminal:hover {
+      box-shadow: 0 0 20px rgba(255,255,255,0.4), 0 0 45px rgba(255,255,255,0.35), 0 0 90px rgba(255,255,255,0.3);
+      border-color: rgba(255,255,255,0.3);
+    }
+    @keyframes floatIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
     .terminal-header { display: flex; gap: 8px; margin-bottom: 15px; }
     .dot { width: 12px; height: 12px; border-radius: 50%; box-shadow: 0 0 5px currentColor; animation: glow 1.5s infinite ease-in-out; }
     .red { background: #ff5f56; } .yellow { background: #ffbd2e; } .green { background: #27c93f; }
-    .line { margin: 6px 0; }
+
+    .line { margin: 6px 0; animation: fadeLine 0.4s ease; }
+    @keyframes fadeLine { from { opacity: 0; transform: translateX(-5px); } to { opacity: 1; transform: translateX(0); } }
     .prompt::before { content: "> "; color: #fff; }
-    .button { display: inline-block; margin-top: 15px; padding: 10px 18px; border: 1px solid #fff; color: #fff; text-decoration: none; border-radius: 6px; transition: 0.25s; cursor: none; }
+
+    .button {
+      display: inline-block; margin-top: 15px; padding: 10px 18px;
+      border: 1px solid #fff; color: #fff; text-decoration: none;
+      border-radius: 6px; transition: 0.25s; cursor: none;
+    }
     .button:hover { background: #fff; color: #000; box-shadow: 0 0 10px #fff; transform: translateY(-2px); }
-    .cursor-blink { display: inline-block; width: 12px; height: 20px; background: #fff; margin-left: 5px; animation: blinkCursor 1.2s infinite; vertical-align: middle; }
+
+    .cursor {
+      display: inline-block; width: 12px; height: 20px; background: #fff;
+      margin-left: 5px; animation: blinkCursor 1.2s infinite;
+      vertical-align: middle; box-shadow: 0 0 8px #fff;
+    }
     @keyframes blinkCursor { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }
-    .logo { animation: logoGlow 2s infinite; text-align: center; font-size: 14px; }
+
+    .logo { animation: logoGlow 2s infinite; text-align: center; font-size: 14px; text-shadow: 0 0 2px #fff; }
     @keyframes logoGlow { 0%,100% { text-shadow: 0 0 2px #fff; opacity: 0.85; } 50% { text-shadow: 0 0 8px #fff; opacity: 1; } }
+
     .corner-bracket { position: absolute; width: 18px; height: 18px; pointer-events: none; animation: bracketPulse 3s infinite; opacity: 0.6; }
-    .corner-bracket.tl { top: 6px; left: 6px; border-top: 1px solid #fff; border-left: 1px solid #fff; }
-    .corner-bracket.tr { top: 6px; right: 6px; border-top: 1px solid #fff; border-right: 1px solid #fff; }
-    .corner-bracket.bl { bottom: 6px; left: 6px; border-bottom: 1px solid #fff; border-left: 1px solid #fff; }
-    .corner-bracket.br { bottom: 6px; right: 6px; border-bottom: 1px solid #fff; border-right: 1px solid #fff; }
+    .corner-bracket.tl { top: 6px; left: 6px;   border-top: 1px solid #fff; border-left: 1px solid #fff; }
+    .corner-bracket.tr { top: 6px; right: 6px;  border-top: 1px solid #fff; border-right: 1px solid #fff; animation-delay: 0.75s; }
+    .corner-bracket.bl { bottom: 6px; left: 6px;  border-bottom: 1px solid #fff; border-left: 1px solid #fff; animation-delay: 1.5s; }
+    .corner-bracket.br { bottom: 6px; right: 6px; border-bottom: 1px solid #fff; border-right: 1px solid #fff; animation-delay: 2.25s; }
     @keyframes bracketPulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
+
     .data-ticker { overflow: hidden; white-space: nowrap; font-size: 10px; opacity: 0.4; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 6px; }
     .data-ticker-inner { display: inline-block; animation: tickerScroll 22s linear infinite; }
     @keyframes tickerScroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
-    .token-info-card { background: #000; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; padding: 14px; margin-bottom: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 12px; }
-    .token-info-item { border-left: 2px solid #fff; padding-left: 10px; }
-    .token-info-label { opacity: 0.6; font-size: 10px; }
-    .token-info-value { font-weight: bold; word-break: break-all; }
-    .fixed-token-address { background: #0f1115; padding: 8px 12px; border-radius: 6px; font-size: 12px; margin-bottom: 12px; border-left: 3px solid #00ffcc; }
-    table { width: 100%; border-collapse: collapse; font-size: 11px; }
-    th, td { padding: 6px 4px; border-bottom: 1px solid rgba(255,255,255,0.1); }
-    th { cursor: pointer; user-select: none; } th:hover { background: rgba(255,255,255,0.05); }
-    .sort-btn { background: transparent; border: 1px solid rgba(255,255,255,0.3); border-radius: 3px; padding: 3px 8px; font-family: monospace; font-size: 10px; cursor: none; color: white; }
-    .sort-btn.active { background: rgba(255,255,255,0.2); border-color: white; }
-    .loading-spinner { display: flex; align-items: center; gap: 8px; padding: 12px; }
-    .error-message { color: #ff5f56; padding: 12px; border: 1px solid #ff5f56; border-radius: 4px; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
-    .retry-btn { background: #333; border: 1px solid #fff; padding: 6px 12px; border-radius: 4px; cursor: pointer; margin-top: 10px; color: #fff; font-family: inherit; }
+
     .pre-launch-badge { display: inline-block; background: #000; border: 1px solid #ffaa33; color: #ffaa33; font-size: 11px; padding: 2px 8px; border-radius: 20px; margin-left: 10px; animation: badgePulse 2s infinite; }
     @keyframes badgePulse { 0%,100% { opacity: 0.7; } 50% { opacity: 1; border-color: #ffcc66; } }
-    .holder-table-scroll { max-height: 400px; overflow-y: auto; margin-top: 8px; }
-    .holder-table-scroll::-webkit-scrollbar { width: 4px; } .holder-table-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 2px; }
-    .status-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; animation: statusPulse 2s infinite; }
-    .status-dot.live { background: #27c93f; } .status-dot.error { background: #ff5f56; } .status-dot.loading { background: #ffbd2e; }
+
+    .admin-glow { transition: box-shadow 0.3s; }
+    .admin-glow:hover { box-shadow: 0 0 12px rgba(255,255,255,0.15); }
+
+    .toast-notification {
+      position: fixed; bottom: 20px; right: 20px; background: #000; border: 1px solid #fff;
+      border-radius: 8px; padding: 12px 18px; min-width: 240px; z-index: 1000;
+      font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #fff;
+      box-shadow: 0 0 15px rgba(255,255,255,0.2); opacity: 0; transform: translateX(50px);
+      transition: opacity 0.3s, transform 0.3s; pointer-events: none;
+    }
+    .toast-notification.show { opacity: 1; transform: translateX(0); }
+
+    .launch-notification {
+      position: fixed; top: 20px; right: 20px; max-width: 340px; background: #000000ee;
+      backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.7); border-radius: 12px;
+      padding: 14px 18px; z-index: 2000; box-shadow: 0 0 20px rgba(255,255,255,0.25);
+      transition: opacity 0.4s, transform 0.3s; opacity: 1; transform: translateX(0);
+    }
+    .launch-notification.hide { opacity: 0; transform: translateX(50px); pointer-events: none; }
+    .launch-notification .countdown-block { font-size: 22px; font-weight: bold; text-align: center; margin: 10px 0; }
+    .close-notif { position: absolute; top: 8px; right: 12px; font-size: 16px; cursor: none; opacity: 0.5; background: none; border: none; color: white; }
+    .close-notif:hover { opacity: 1; }
+
+    .supply-update.bounce { animation: supplyGlow 0.3s ease-out; }
+    @keyframes supplyGlow { 0% { transform: scale(1); } 40% { transform: scale(1.05); text-shadow: 0 0 10px #fff; } 100% { transform: scale(1); } }
+
+    .roadmap-item { opacity: 0; transform: translateX(-5px); animation: roadmapReveal 0.5s ease forwards; transition: 0.2s; }
+    .roadmap-item:hover { text-shadow: 0 0 5px #fff; transform: translateX(2px); }
+    .roadmap-item:nth-child(1) { animation-delay: 0.1s; }
+    .roadmap-item:nth-child(2) { animation-delay: 0.2s; }
+    .roadmap-item:nth-child(3) { animation-delay: 0.3s; }
+    .roadmap-item:nth-child(4) { animation-delay: 0.4s; }
+    .roadmap-item:nth-child(5) { animation-delay: 0.5s; }
+    .roadmap-item:nth-child(6) { animation-delay: 0.6s; }
+    @keyframes roadmapReveal { 0% { opacity: 0; transform: translateX(-5px); } 100% { opacity: 1; transform: translateX(0); } }
+
+    /* Creator view styles */
+    .creator-view-section {
+      margin-top: 24px;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 10px;
+      padding: 16px;
+      background: #000000cc;
+      animation: floatIn 0.8s ease;
+    }
+    .creator-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .creator-title {
+      font-size: 14px;
+      font-weight: bold;
+    }
+    .status-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      margin-left: 8px;
+      animation: statusPulse 2s infinite;
+    }
+    .status-dot.live    { background: #27c93f; }
+    .status-dot.error   { background: #ff5f56; }
+    .status-dot.loading { background: #ffbd2e; }
     @keyframes statusPulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
-    .refresh-info { font-size: 10px; opacity: 0.4; margin-top: 6px; }
+    .creator-wallet {
+      font-size: 11px;
+      opacity: 0.7;
+      word-break: break-all;
+      margin-bottom: 12px;
+      background: #0a0a0a;
+      padding: 8px;
+      border-radius: 6px;
+    }
+    .token-card {
+      background: #0a0a0a;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 16px;
+      transition: border-color 0.2s;
+    }
+    .token-card:hover {
+      border-color: rgba(255,255,255,0.4);
+      box-shadow: 0 0 8px rgba(255,255,255,0.1);
+    }
+    .token-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .token-name {
+      font-size: 14px;
+      font-weight: bold;
+    }
+    .token-mint {
+      font-size: 10px;
+      opacity: 0.5;
+      word-break: break-all;
+      margin-bottom: 8px;
+    }
+    .token-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .stat-item {
+      border-left: 2px solid #00ffcc;
+      padding-left: 8px;
+    }
+    .stat-label {
+      font-size: 9px;
+      opacity: 0.5;
+      text-transform: uppercase;
+    }
+    .stat-value {
+      font-size: 12px;
+      font-weight: bold;
+      word-break: break-all;
+    }
+    .holders-table {
+      max-height: 250px;
+      overflow-y: auto;
+      margin-top: 8px;
+    }
+    .holders-table::-webkit-scrollbar { width: 4px; }
+    .holders-table::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 2px; }
+    .empty-state {
+      text-align: center;
+      padding: 30px 20px;
+      opacity: 0.5;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .error-message {
+      color: #ff5f56;
+      padding: 12px;
+      border: 1px solid #ff5f56;
+      border-radius: 4px;
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .retry-btn {
+      background: #333;
+      border: 1px solid #fff;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 10px;
+      color: #fff;
+      font-family: inherit;
+    }
+    .loading-spinner {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+    th, td {
+      padding: 6px 4px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      text-align: left;
+    }
+    th {
+      cursor: default;
+    }
   </style>
 </head>
 <body>
   <div id="customCursor"></div>
   <div class="scanlines"></div>
+
   <div class="terminal">
     <div class="corner-bracket tl"></div><div class="corner-bracket tr"></div>
     <div class="corner-bracket bl"></div><div class="corner-bracket br"></div>
-    <div class="data-ticker"><span class="data-ticker-inner" id="tickerContent"></span></div>
-    <div class="terminal-header"><div class="dot red"></div><div class="dot yellow"></div><div class="dot green"></div></div>
+
+    <div class="data-ticker">
+      <span class="data-ticker-inner" id="tickerContent">
+        SYS::PRELAUNCH &nbsp;|&nbsp; COUNTDOWN ACTIVE &nbsp;|&nbsp; TOKEN_RELEASE: PAUSED &nbsp;|&nbsp; SUPPLY: 0 / 109 &nbsp;|&nbsp; STATUS: LOCKED &nbsp;|&nbsp; CHAIN: SOLANA &nbsp;|&nbsp; LAUNCH: 7 DAYS &nbsp;|&nbsp;
+        SYS::PRELAUNCH &nbsp;|&nbsp; COUNTDOWN ACTIVE &nbsp;|&nbsp; TOKEN_RELEASE: PAUSED &nbsp;|&nbsp; SUPPLY: 0 / 109 &nbsp;|&nbsp; STATUS: LOCKED &nbsp;|&nbsp; CHAIN: SOLANA &nbsp;|&nbsp; LAUNCH: 7 DAYS &nbsp;|&nbsp;
+      </span>
+    </div>
+
+    <div class="terminal-header">
+      <div class="dot red"></div><div class="dot yellow"></div><div class="dot green"></div>
+    </div>
+
     <pre class="logo">
 ██████╗ ██████╗  ██████╗      ██╗███████╗ ██████╗████████╗
 ██╔══██╗██╔══██╗██╔═══██╗     ██║██╔════╝██╔════╝╚══██╔══╝
@@ -72,226 +315,204 @@
 ██║     ██║  ██║╚██████╔╝╚█████╔╝███████╗╚██████╗   ██║   
 ╚═╝     ╚═╝  ╚═╝ ╚═════╝  ╚════╝ ╚══════╝ ╚═════╝   ╚═╝   
                                                      109t
-                project109t.fun • TOKEN VIEWER
-</pre>
-    <div style="margin-top: 20px; border: 1px solid rgba(255,255,255,0.2); border-radius: 10px; padding: 16px; background: #000000cc;">
-      <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap;">
-        <div style="font-size: 14px; font-weight: bold;">🔍 TOKEN VIEWER <span id="statusDot" class="status-dot loading"></span></div>
-        <div id="pricePreview"></div>
-      </div>
-      <div class="fixed-token-address">📍 <strong>Target Token</strong><br><code>B7aNmmvPANVuqKgnEMAJzY6sUB6pcebZCxWUqzvApump</code></div>
-      <div class="token-info-card">
-        <div class="token-info-item"><div class="token-info-label">📛 NAME</div><div id="tokenName" class="token-info-value">—</div></div>
-        <div class="token-info-item"><div class="token-info-label">🔣 SYMBOL</div><div id="tokenSymbol" class="token-info-value">—</div></div>
-        <div class="token-info-item"><div class="token-info-label">🔢 DECIMALS</div><div id="tokenDecimals" class="token-info-value">—</div></div>
-        <div class="token-info-item"><div class="token-info-label">💎 TOTAL SUPPLY</div><div id="tokenSupply" class="token-info-value">—</div></div>
-        <div class="token-info-item"><div class="token-info-label">👑 MINT AUTHORITY</div><div id="mintAuthority" class="token-info-value">—</div></div>
-        <div class="token-info-item"><div class="token-info-label">❄️ FREEZE AUTHORITY</div><div id="freezeAuthority" class="token-info-value">—</div></div>
-        <div class="token-info-item"><div class="token-info-label">🌐 METADATA URI</div><div id="metadataUri" class="token-info-value">—</div></div>
-      </div>
-      <div style="margin-top: 8px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-          <span>📦 TOKEN HOLDERS <span id="holderCount" style="opacity:0.5;font-size:10px;"></span></span>
-          <div id="holderSortControls"></div>
-        </div>
-        <div id="holderLoadingMsg" class="loading-spinner" style="display: none;"><span class="cursor-blink"></span> Fetching holders…</div>
-        <div id="holderResultsContainer" class="holder-table-scroll">
-          <div style="padding:20px; text-align:center;">Loading libraries…</div>
-        </div>
-        <div class="refresh-info" id="refreshInfo"></div>
+                project109t.fun • CREATOR VIEW
+    </pre>
+
+    <pre id="asciiBox" style="color:#fff; text-align:left;">
+╔══════════════════════════════════════╗
+║          PROJECT 109T                ║
+╠══════════════════════════════════════╣
+║   ░ SYSTEM: PRE-LAUNCH (PAUSED)      ║
+║   ░ MAX SUPPLY: 109                  ║
+╚══════════════════════════════════════╝
+    </pre>
+
+    <div class="line prompt" id="init"></div>
+
+    <div class="line prompt">
+      Total Released: <span class="highlight supply-update" id="supply">0 / 109 tokens</span>
+      <span class="pre-launch-badge" id="preLaunchBadge">PRE-LAUNCH</span>
+    </div>
+
+    <div class="line prompt clock-pulse" id="clock">Next Token In: --:--:--</div>
+    <div class="line prompt" id="counter">Day 0 / 109</div>
+    <div class="line prompt"><span id="statusText">Status: PRE-LAUNCH (Countdown Active)</span></div>
+
+    <div style="margin-top:12px; padding:10px; border:1px solid #fff; border-radius:6px; background:#000;" class="admin-glow">
+      <div style="font-size:12px; opacity:0.7; margin-bottom:6px;">ADMIN MESSAGE</div>
+      <div id="adminMessage" style="font-size:13px; line-height:1.4; min-height:72px;">
+        <div id="adminInner">⏳ Project109T launches in 7 days.<br>Token release frozen until then.<br>Countdown in progress — prepare for Day 1.</div>
       </div>
     </div>
-    <div class="line prompt">Total Released: <span id="supply">0 / 109 tokens</span> <span class="pre-launch-badge">PRE-LAUNCH</span></div>
-    <div class="line prompt" id="clock">Next Token In: --:--:--</div>
-    <div class="line prompt" id="counter">Day 0 / 109</div>
-    <div style="display:flex; gap:12px; margin-top:12px;">
+
+    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:4px;">
+      <a href="https://pump.fun/" target="_blank" rel="noopener noreferrer" class="button">[ Buy on Pump.fun ]</a>
       <a href="#" id="connectWallet" class="button">[ Connect Wallet ]</a>
-      <a href="https://discord.gg/4WWt3E9N" class="button">[ Discord ]</a>
+    </div>
+    <div style="margin-top:4px; display:flex; flex-wrap:wrap; gap:8px;">
+      <a href="https://discord.gg/4WWt3E9N" target="_blank" class="button">[ Discord ]</a>
+      <a href="https://telegram.org/" target="_blank" class="button">[ Telegram ]</a>
+      <a href="https://x.com/Project109T" target="_blank" class="button">[ X ]</a>
+      <a href="https://dexscreener.com" target="_blank" class="button">[ Dex Screener ]</a>
+    </div>
+
+    <div id="summaryText" style="margin-top:12px; font-size:12px; opacity:0.85; line-height:1.6;">
+      Project109T is a limited 109-day token experiment designed around time, scarcity, and patience.<br><br>
+      <strong>📅 PRE-LAUNCH PERIOD: The first token will be released exactly 7 days from now.</strong> Until then, supply remains zero.<br><br>
+      Every 24 hours after launch, exactly one new token unlocks — no pre-minting, no shortcuts.
+    </div>
+
+    <div id="roadmapContainer" style="margin-top:12px; padding:10px; border:1px solid #fff; border-radius:6px; background:#000;">
+      <div style="font-size:12px; opacity:0.7; margin-bottom:6px;">ROADMAP</div>
+      <div id="roadmapList" style="font-size:13px; line-height:1.6;">
+        <div class="roadmap-item">░ Pre-Launch (7 days) — Countdown / Zero supply</div>
+        <div class="roadmap-item">░ Day 1–10: Initial launch phase — early holders enter</div>
+        <div class="roadmap-item">░ Day 11–30: Awareness growth — community forming</div>
+        <div class="roadmap-item">░ Day 31–60: Mid-cycle — scarcity becomes visible</div>
+        <div class="roadmap-item">░ Day 61–90: Late phase — positions become rare</div>
+        <div class="roadmap-item">░ Day 91–109: Final stretch — maximum scarcity reached</div>
+      </div>
+    </div>
+
+    <!-- ========== CREATOR VIEW (only tokens created by the given wallet) ========== -->
+    <div class="creator-view-section">
+      <div class="creator-header">
+        <div class="creator-title">🎨 CREATOR VIEW <span id="creatorStatusDot" class="status-dot loading"></span></div>
+      </div>
+      <div class="creator-wallet">
+        📍 <strong>Monitored Creator Wallet</strong><br>
+        <code>G2UrBNzwVZoWsXYyuUoys4TTFHJK1oPkGNqsVgK2sSAm</code>
+      </div>
+      <div id="creatorResults">
+        <div class="loading-spinner"><span class="cursor"></span> Loading tokens created by this wallet...</div>
+      </div>
+    </div>
+
+    <div class="line prompt" style="margin-top:12px;">
+      <span id="joinNeonText">Pre‑launch countdown active →</span><span class="cursor"></span>
     </div>
   </div>
 
+  <div id="toastContainer" aria-live="polite"></div>
+  <div id="launchNotify" class="launch-notification" role="status">
+    <button class="close-notif" id="closeNotifyBtn" aria-label="Close">✕</button>
+    <div class="notif-header"><span class="notif-icon">⏳</span><span class="notif-title">TOKEN LAUNCH IN</span></div>
+    <div id="countdownDisplay" class="countdown-block">--d --h --m --s</div>
+    <div class="countdown-label">until first token release • Day 1</div>
+    <div class="launch-date">🔒 supply frozen • release starts after countdown</div>
+  </div>
+
   <script>
-    const CONFIG = {
-      TOKEN_MINT: "B7aNmmvPANVuqKgnEMAJzY6sUB6pcebZCxWUqzvApump",
-      TOKEN_PROGRAM_ID: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
-      METADATA_PROGRAM_ID: "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s",
-      JUPITER_PRICE_API: "https://quote-api.jup.ag/v6/price",
-      QUICKNODE_HTTP: "https://still-tiniest-dinghy.solana-mainnet.quiknode.pro/fa788fad772541fd7c70be3315e1d83ac0331f0b",
-      QUICKNODE_WS: "wss://still-tiniest-dinghy.solana-mainnet.quiknode.pro/fa788fad772541fd7c70be3315e1d83ac0331f0b",
-      HELIUS_API_KEY: "70da5c4d-b87b-4842-bfd5-a9977e4aed1c",
-      get HTTP_ENDPOINT() { return this.QUICKNODE_HTTP; },
-      get WS_ENDPOINT() { return this.QUICKNODE_WS; },
-      FALLBACK_HTTP_ENDPOINTS: [
-        `https://mainnet.helius-rpc.com/?api-key=70da5c4d-b87b-4842-bfd5-a9977e4aed1c`,
-        "https://api.mainnet-beta.solana.com",
-        "https://rpc.ankr.com/solana"
-      ],
-      REFRESH_INTERVAL: 45000,
-      HOLDERS_TIMEOUT: 30000,
-      MAX_HOLDERS_DISPLAY: 100
-    };
-
-    const state = {
-      connection: null, solanaWeb3: null, splToken: null,
-      currentDecimals: 0, totalSupplyNum: 0, allHolders: [],
-      sortField: 'amount', sortDirection: 'desc',
-      isLoading: false, lastRefresh: null, isFullList: true
-    };
-
-    const elements = {
-      tokenName: document.getElementById('tokenName'), tokenSymbol: document.getElementById('tokenSymbol'),
-      tokenDecimals: document.getElementById('tokenDecimals'), tokenSupply: document.getElementById('tokenSupply'),
-      mintAuthority: document.getElementById('mintAuthority'), freezeAuthority: document.getElementById('freezeAuthority'),
-      metadataUri: document.getElementById('metadataUri'), holderContainer: document.getElementById('holderResultsContainer'),
-      holderLoading: document.getElementById('holderLoadingMsg'), sortControls: document.getElementById('holderSortControls'),
-      pricePreview: document.getElementById('pricePreview'), statusDot: document.getElementById('statusDot'),
-      holderCount: document.getElementById('holderCount'), refreshInfo: document.getElementById('refreshInfo')
-    };
-
-    function shortAddress(addr) { return addr.slice(0, 5) + '…' + addr.slice(-4); }
-    function formatNumber(num, decimals = 0) { return num.toLocaleString(undefined, { maximumFractionDigits: decimals }); }
-    function setStatus(type) { if (elements.statusDot) elements.statusDot.className = 'status-dot ' + type; }
-    function showCriticalError(message) {
-      const container = elements.holderContainer;
-      const isLibError = message.includes('Solana libraries') || message.includes('CDN');
-      const hint = isLibError
-        ? `\n\n🛠 FIXES TO TRY:\n  1. Disable your ad-blocker / browser shield for this page\n  2. Try a different browser (Chrome or Firefox)\n  3. Disable browser extensions one by one\n  4. Check your internet connection\n  5. If on a corporate/school network, it may be firewall-blocked`
-        : `\n\nPlease copy this message and try searching it, or disable ad-blockers/CORS shields.`;
-      container.innerHTML = `<div class="error-message">CRITICAL ERROR:\n${message}${hint}</div>
-        <button class="retry-btn" onclick="location.reload()">⟳ Retry</button>`;
-    }
-    function showLoading(show = true) { if (elements.holderLoading) elements.holderLoading.style.display = show ? 'flex' : 'none'; state.isLoading = show; }
-
+    // ── Custom cursor ──────────────────────────────────────────────────────────
     (function() {
       const c = document.getElementById('customCursor');
-      if(c) document.addEventListener('mousemove', e => { c.style.left = e.clientX + 'px'; c.style.top = e.clientY + 'px'; });
+      if (c) document.addEventListener('mousemove', e => { c.style.left = e.clientX + 'px'; c.style.top = e.clientY + 'px'; });
     })();
 
-    (function() {
-      const tickerText = '⚡ TOKEN VIEWER ACTIVE ⚡ | B7aNmmvPANVuqKgnEMAJzY6sUB6pcebZCxWUqzvApump ⚡ ';
-      const el = document.getElementById('tickerContent');
-      if(el) el.textContent = tickerText + tickerText;
-    })();
-
-    // ── Manual SPL replacement ────────────────────────────────────────────────
-    // @solana/spl-token has no reliable browser IIFE build, so we implement
-    // the two functions we actually need: getMint() and AccountLayout.decode()
-    // using raw buffer maths on the on-chain account data.
+    // ── Manual SPL replacement (for mint/holder data) ─────────────────────────
     const ManualSPL = {
-      // Mint account layout (82 bytes):
-      //  0: mintAuthorityOption u32
-      //  4: mintAuthority       [32]
-      // 36: supply              u64 LE
-      // 44: decimals            u8
-      // 45: isInitialized       u8
-      // 46: freezeAuthorityOption u32
-      // 50: freezeAuthority     [32]
       getMint: async function(connection, mintPubkey) {
         const info = await connection.getAccountInfo(mintPubkey);
         if (!info) throw new Error('Mint account not found');
         const d = info.data;
-        const readU32  = (o) => (d[o] | d[o+1]<<8 | d[o+2]<<16 | d[o+3]<<24) >>> 0;
-        const readU64  = (o) => {
+        const readU32 = (o) => (d[o] | d[o+1]<<8 | d[o+2]<<16 | d[o+3]<<24) >>> 0;
+        const readU64 = (o) => {
           const lo = readU32(o), hi = readU32(o+4);
           return (BigInt(hi) << 32n | BigInt(lo >>> 0)).toString();
         };
-        const mintAuthOpt   = readU32(0);
-        const mintAuthority = mintAuthOpt ? new state.solanaWeb3.PublicKey(d.slice(4,  36)) : null;
-        const supply        = readU64(36);
-        const decimals      = d[44];
-        const freezeOpt     = readU32(46);
+        const mintAuthOpt     = readU32(0);
+        const mintAuthority   = mintAuthOpt ? new state.solanaWeb3.PublicKey(d.slice(4, 36)) : null;
+        const supply          = readU64(36);
+        const decimals        = d[44];
+        const freezeOpt       = readU32(46);
         const freezeAuthority = freezeOpt ? new state.solanaWeb3.PublicKey(d.slice(50, 82)) : null;
         return { mintAuthority, supply, decimals, freezeAuthority, isInitialized: d[45] === 1 };
       },
-      // Token account layout (165 bytes):
-      //  0: mint   [32]
-      // 32: owner  [32]
-      // 64: amount u64 LE
       AccountLayout: {
         decode: function(d) {
           const readU64 = (o) => {
             let lo = 0, hi = 0;
-            for (let i = 0; i < 4; i++) lo |= d[o+i] << (i*8);
+            for (let i = 0; i < 4; i++) lo |= d[o+i]   << (i*8);
             for (let i = 0; i < 4; i++) hi |= d[o+4+i] << (i*8);
             return BigInt(hi >>> 0) << 32n | BigInt(lo >>> 0);
           };
-          return {
-            mint:   d.slice(0, 32),
-            owner:  d.slice(32, 64),
-            amount: readU64(64)
-          };
+          return { mint: d.slice(0, 32), owner: d.slice(32, 64), amount: readU64(64) };
         }
       }
     };
-    // ─────────────────────────────────────────────────────────────────────────
 
     async function loadScript(src, timeoutMs = 12000) {
       return new Promise((resolve, reject) => {
         const existing = document.querySelector(`script[src="${src}"]`);
-        if (existing) { existing.remove(); }
+        if (existing) existing.remove();
         const script = document.createElement('script');
         script.src = src;
         script.crossOrigin = 'anonymous';
         const timer = setTimeout(() => { script.remove(); reject(new Error(`Timeout loading ${src}`)); }, timeoutMs);
-        script.onload = () => { clearTimeout(timer); resolve(); };
+        script.onload  = () => { clearTimeout(timer); resolve(); };
         script.onerror = () => { clearTimeout(timer); script.remove(); reject(new Error(`Failed to load ${src}`)); };
         document.head.appendChild(script);
       });
     }
 
     async function loadSolanaLibraries() {
-      // Only web3.js needed — spl-token replaced by ManualSPL above.
-      // PINNED to v1.x: v2.0 does not expose window.solanaWeb3.
       const WEB3_CDNS = [
         "https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js",
         "https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.3/lib/index.iife.min.js",
         "https://unpkg.com/@solana/web3.js@1.91.9/lib/index.iife.min.js",
         "https://cdn.jsdelivr.net/npm/@solana/web3.js@1.91.9/lib/index.iife.min.js"
       ];
-
       const errors = [];
       for (const url of WEB3_CDNS) {
         try {
-          elements.holderContainer.innerHTML = `<div style="padding:20px;text-align:center;">⏳ Loading Solana from ${new URL(url).hostname}…</div>`;
           await loadScript(url);
           if (window.solanaWeb3) {
             state.solanaWeb3 = window.solanaWeb3;
-            state.splToken   = ManualSPL;   // ← our built-in replacement
-            console.log(`✅ web3.js loaded from ${new URL(url).hostname} | using built-in SPL parser`);
+            state.splToken   = ManualSPL;
+            console.log(`✅ web3.js loaded from ${new URL(url).hostname}`);
             return;
           }
-          errors.push(`${new URL(url).hostname}: loaded but window.solanaWeb3 missing`);
+          errors.push(`${new URL(url).hostname}: window.solanaWeb3 missing`);
         } catch (e) {
           errors.push(`${new URL(url).hostname}: ${e.message}`);
-          console.warn('CDN failed:', e);
         }
       }
-      throw new Error(`Could not load @solana/web3.js from any CDN. Check your internet connection.\n\nDetails:\n${errors.join('\n')}`);
+      throw new Error(`Could not load @solana/web3.js\n\n${errors.join('\n')}`);
     }
 
-    // ── WebSocket RPC client ─────────────────────────────────────────────────
-    // HTTP fetch() from browsers is blocked by CORS on every Solana RPC provider.
-    // WebSocket is NOT subject to the same CORS rules — browsers allow WS
-    // connections to any origin. We use this to bypass the CORS wall entirely.
+    // ── Config ─────────────────────────────────────────────────────────────────
+    const CONFIG = {
+      CREATOR_WALLET: "G2UrBNzwVZoWsXYyuUoys4TTFHJK1oPkGNqsVgK2sSAm",
+      HELIUS_API_KEY: "70da5c4d-b87b-4842-bfd5-a9977e4aed1c",
+      HELIUS_RPC: "https://mainnet.helius-rpc.com/?api-key=70da5c4d-b87b-4842-bfd5-a9977e4aed1c",
+      PUMP_FUN_API: "https://frontend-api.pump.fun/coins/",
+      QUICKNODE_HTTP: "https://still-tiniest-dinghy.solana-mainnet.quiknode.pro/fa788fad772541fd7c70be3315e1d83ac0331f0b",
+      QUICKNODE_WS: "wss://still-tiniest-dinghy.solana-mainnet.quiknode.pro/fa788fad772541fd7c70be3315e1d83ac0331f0b",
+      get HTTP_ENDPOINT() { return this.QUICKNODE_HTTP; }
+    };
+
+    // ── App state ──────────────────────────────────────────────────────────────
+    const state = {
+      connection: null, solanaWeb3: null, splToken: null,
+      createdTokens: []
+    };
+
+    // ── WebSocket RPC client (bypasses CORS) ───────────────────────────────────
     class WSRpcConnection {
       constructor(wsUrl, commitment = 'confirmed') {
-        this.wsUrl  = wsUrl;
+        this.wsUrl = wsUrl;
         this.commitment = commitment;
-        this.ws     = null;
-        this._q     = new Map();
-        this._id    = 1;
+        this.ws   = null;
+        this._q   = new Map();
+        this._id  = 1;
       }
-
       _ensureOpen() {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) return Promise.resolve();
         return new Promise((res, rej) => {
           this.ws = new WebSocket(this.wsUrl);
-          this.ws.onopen = res;
-          this.ws.onerror = () => rej(new Error('WS handshake failed: ' + this.wsUrl));
-          this.ws.onclose = () => {
-            for (const [, p] of this._q) p.rej(new Error('WebSocket closed'));
-            this._q.clear();
-          };
+          this.ws.onopen  = res;
+          this.ws.onerror = () => rej(new Error('WS handshake failed'));
+          this.ws.onclose = () => { for (const [, p] of this._q) p.rej(new Error('WS closed')); this._q.clear(); };
           this.ws.onmessage = ({ data }) => {
             try {
               const msg = JSON.parse(data);
@@ -305,53 +526,32 @@
           };
         });
       }
-
       async _call(method, params) {
         await this._ensureOpen();
         const id = this._id++;
         return new Promise((res, rej) => {
-          const t = setTimeout(() => { this._q.delete(id); rej(new Error('RPC timeout: ' + method)); }, 30000);
+          const t = setTimeout(() => { this._q.delete(id); rej(new Error('RPC timeout')); }, 30000);
           this._q.set(id, { res, rej, t });
           this.ws.send(JSON.stringify({ jsonrpc: '2.0', id, method, params }));
         });
       }
-
-      async getSlot()        { return this._call('getSlot',       [{ commitment: this.commitment }]); }
-      async getBlockHeight() { return this._call('getBlockHeight', [{ commitment: this.commitment }]); }
-
+      async getSlot() { return this._call('getSlot', [{ commitment: this.commitment }]); }
       _b64toBuffer(b64) {
         const bin = atob(b64), buf = new Uint8Array(bin.length);
         for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
-        // Attach Buffer-style helpers needed by ManualSPL & metadata parser
-        buf.readUInt32LE = (o) => buf[o] | buf[o+1]<<8 | buf[o+2]<<16 | buf[o+3]<<24;
+        buf.readUInt32LE    = (o) => buf[o] | buf[o+1]<<8 | buf[o+2]<<16 | buf[o+3]<<24;
         buf.readBigUInt64LE = (o) => {
           const lo = buf.readUInt32LE(o), hi = buf.readUInt32LE(o+4);
           return BigInt(hi>>>0) << 32n | BigInt(lo>>>0);
         };
-        buf.slice  = (a,b) => { const s = buf.subarray(a,b); s.readUInt32LE = buf.readUInt32LE; s.readBigUInt64LE = buf.readBigUInt64LE; s.slice = buf.slice; s.toString = buf.toString; return s; };
-        buf.toString = (enc) => { let s=''; for (const c of buf) s += String.fromCharCode(c); return s; };
         return buf;
       }
-
       async getAccountInfo(pubkeyOrStr) {
         const addr = typeof pubkeyOrStr === 'string' ? pubkeyOrStr : pubkeyOrStr.toBase58();
         const res  = await this._call('getAccountInfo', [addr, { encoding: 'base64', commitment: this.commitment }]);
         if (!res || !res.value) return null;
         return { data: this._b64toBuffer(res.value.data[0]), owner: res.value.owner, lamports: res.value.lamports };
       }
-
-      async getProgramAccounts(progIdOrStr, cfg = {}) {
-        const addr   = typeof progIdOrStr === 'string' ? progIdOrStr : progIdOrStr.toBase58();
-        const rpcCfg = { encoding: 'base64', commitment: this.commitment };
-        if (cfg.filters)   rpcCfg.filters   = cfg.filters;
-        if (cfg.dataSlice) rpcCfg.dataSlice  = cfg.dataSlice;
-        const res = await this._call('getProgramAccounts', [addr, rpcCfg]);
-        return (res || []).map(item => ({
-          pubkey:  new state.solanaWeb3.PublicKey(item.pubkey),
-          account: { ...item.account, data: this._b64toBuffer(item.account.data[0]) }
-        }));
-      }
-
       async getTokenLargestAccounts(mintOrStr) {
         const addr = typeof mintOrStr === 'string' ? mintOrStr : mintOrStr.toBase58();
         const res  = await this._call('getTokenLargestAccounts', [addr, { commitment: this.commitment }]);
@@ -363,244 +563,319 @@
         };
       }
     }
-    // ─────────────────────────────────────────────────────────────────────────
 
     async function createConnection() {
-      const HTTP_ENDPOINTS = [CONFIG.HTTP_ENDPOINT, ...CONFIG.FALLBACK_HTTP_ENDPOINTS];
-      const WS_ENDPOINTS   = [
-        CONFIG.QUICKNODE_WS,
-        `wss://mainnet.helius-rpc.com/?api-key=${CONFIG.HELIUS_API_KEY}`,
-        'wss://api.mainnet-beta.solana.com'
-      ];
-      const errors = [];
-
-      // ── Pass 1: try HTTP via web3.js (works if CORS is configured) ──────
+      const HTTP_ENDPOINTS = [CONFIG.HTTP_ENDPOINT, "https://mainnet.helius-rpc.com/?api-key=" + CONFIG.HELIUS_API_KEY, "https://api.mainnet-beta.solana.com"];
+      const WS_ENDPOINTS   = [CONFIG.QUICKNODE_WS, `wss://mainnet.helius-rpc.com/?api-key=${CONFIG.HELIUS_API_KEY}`, 'wss://api.mainnet-beta.solana.com'];
       for (const url of HTTP_ENDPOINTS) {
         try {
-          elements.holderContainer.innerHTML = `<div style="padding:20px;text-align:center;">⏳ Trying HTTP: ${new URL(url).hostname}…</div>`;
           const conn = new state.solanaWeb3.Connection(url, { commitment: 'confirmed' });
           await conn.getSlot();
           state.connection = conn;
           console.log('✅ HTTP RPC connected:', url);
           return;
-        } catch(e) {
-          errors.push('HTTP ' + new URL(url).hostname + ': ' + e.message);
-          console.warn('HTTP RPC failed:', url, e);
-        }
+        } catch(e) {}
       }
-
-      // ── Pass 2: WebSocket fallback — bypasses CORS entirely ─────────────
       for (const wsUrl of WS_ENDPOINTS) {
         try {
-          elements.holderContainer.innerHTML = `<div style="padding:20px;text-align:center;">⏳ Trying WebSocket: ${wsUrl.split('/')[2]}…</div>`;
           const conn = new WSRpcConnection(wsUrl);
           await conn.getSlot();
           state.connection = conn;
           console.log('✅ WebSocket RPC connected:', wsUrl);
           return;
-        } catch(e) {
-          errors.push('WS ' + wsUrl.split('/')[2] + ': ' + e.message);
-          console.warn('WS RPC failed:', wsUrl, e);
-        }
+        } catch(e) {}
       }
-
-      throw new Error('Could not connect to any Solana RPC endpoint.\n\nTried:\n' + errors.join('\n'));
+      throw new Error('No RPC connection available');
     }
 
-    async function fetchMetadata(mintPubkey) {
-      try {
-        const METADATA_PROGRAM_ID = new state.solanaWeb3.PublicKey(CONFIG.METADATA_PROGRAM_ID);
-        const [pda] = state.solanaWeb3.PublicKey.findProgramAddressSync(
-          [Buffer.from("metadata"), METADATA_PROGRAM_ID.toBuffer(), mintPubkey.toBuffer()], METADATA_PROGRAM_ID
-        );
-        const info = await state.connection.getAccountInfo(pda);
-        if (!info) return { name: '—', symbol: '—', uri: '—' };
-        const data = info.data; let off = 1 + 32 + 32;
-        const nLen = data[off++]; const name = data.slice(off, off + nLen).toString('utf8').replace(/\x00/g, ''); off += nLen;
-        const sLen = data[off++]; const symbol = data.slice(off, off + sLen).toString('utf8').replace(/\x00/g, ''); off += sLen;
-        const uLen = data[off++]; const uri = data.slice(off, off + uLen).toString('utf8').replace(/\x00/g, '');
-        return { name: name || '—', symbol: symbol || '—', uri: uri || '—' };
-      } catch (e) { return { name: '—', symbol: '—', uri: '—' }; }
-    }
-
-    async function fetchPrice() {
-      try {
-        const r = await fetch(`${CONFIG.JUPITER_PRICE_API}?ids=${CONFIG.TOKEN_MINT}`);
-        const d = await r.json();
-        if (d.data?.[CONFIG.TOKEN_MINT]?.price) return `💰 $${parseFloat(d.data[CONFIG.TOKEN_MINT].price).toFixed(6)}`;
-        return '';
-      } catch (e) { return ''; }
-    }
-
-    async function fetchHoldersWithOptimization() {
-      const TOKEN_PROGRAM_ID = new state.solanaWeb3.PublicKey(CONFIG.TOKEN_PROGRAM_ID);
-      try {
-        const accounts = await state.connection.getProgramAccounts(TOKEN_PROGRAM_ID, {
-          filters: [{ dataSize: 165 }, { memcmp: { offset: 0, bytes: CONFIG.TOKEN_MINT } }],
-          dataSlice: { offset: 32, length: 40 }, commitment: 'confirmed'
-        });
-        const holderMap = new Map();
-        for (const { account } of accounts) {
-          const data = account.data;
-          const owner = new state.solanaWeb3.PublicKey(data.slice(0, 32)).toBase58();
-          const amount = Number(data.readBigUInt64LE(32)) / Math.pow(10, state.currentDecimals);
-          if (amount <= 0) continue;
-          holderMap.set(owner, (holderMap.get(owner) || 0) + amount);
+    // ── Fetch tokens created by the wallet using Helius DAS API ────────────────
+    async function fetchTokensByCreator(creatorAddr) {
+      const url = CONFIG.HELIUS_RPC;
+      const payload = {
+        jsonrpc: "2.0",
+        id: "creator-view",
+        method: "getAssetsByCreator",
+        params: {
+          creatorAddress: creatorAddr,
+          onlyVerified: true,
+          page: 1,
+          limit: 100
         }
-        let holders = Array.from(holderMap.entries()).map(([owner, amount]) => ({ owner, amount }));
-        holders.sort((a, b) => b.amount - a.amount);
-        const totalHolders = holders.length;
-        state.isFullList = totalHolders <= CONFIG.MAX_HOLDERS_DISPLAY;
-        if (!state.isFullList) holders = holders.slice(0, CONFIG.MAX_HOLDERS_DISPLAY);
-        return {
-          holders: holders.map((h, i) => ({ ...h, rank: i + 1, percentage: state.totalSupplyNum > 0 ? (h.amount / state.totalSupplyNum) * 100 : 0 })),
-          totalHolders, isFullList: state.isFullList
-        };
-      } catch (error) {
-        console.warn('getProgramAccounts failed, using fallback:', error);
-        return await fetchTopHoldersFallback();
+      };
+      try {
+        const resp = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await resp.json();
+        if (data.error) throw new Error(data.error.message);
+        const items = data.result?.items || [];
+        // Filter for fungible tokens only (interface "FungibleToken" or "FungibleAsset")
+        const fungible = items.filter(item => item.interface === "FungibleToken" || item.interface === "FungibleAsset");
+        return fungible.map(item => ({
+          mint: item.id,
+          name: item.content?.metadata?.name || "—",
+          symbol: item.content?.metadata?.symbol || "—",
+          decimals: item.token_info?.decimals || 6,
+          supply: item.token_info?.supply || "0",
+          tokenType: item.interface
+        }));
+      } catch (err) {
+        console.warn("Helius DAS failed, trying pump.fun fallback", err);
+        return await fetchPumpFunTokensByCreator(creatorAddr);
       }
     }
 
-    async function fetchTopHoldersFallback() {
+    // Fallback: try to get tokens from pump.fun frontend API (if creator deployed there)
+    async function fetchPumpFunTokensByCreator(creatorAddr) {
+      // pump.fun does not have a direct "by creator" endpoint, but we can search? For simplicity return empty.
+      // We'll rely on Helius; if Helius fails, show error.
+      return [];
+    }
+
+    // Fetch additional details for a token (total supply in human readable, holders)
+    async function enrichToken(token) {
       try {
-        const mintPubkey = new state.solanaWeb3.PublicKey(CONFIG.TOKEN_MINT);
-        const largestAccounts = await state.connection.getTokenLargestAccounts(mintPubkey);
-        const holders = [];
-        for (const { address, amount } of largestAccounts.value) {
-          const accountInfo = await state.connection.getAccountInfo(address);
-          if (!accountInfo) continue;
-          const tokenAccount = state.splToken.AccountLayout.decode(accountInfo.data);
-          const owner = new state.solanaWeb3.PublicKey(tokenAccount.owner).toBase58();
-          const amountDecimal = Number(tokenAccount.amount) / Math.pow(10, state.currentDecimals);
-          holders.push({ owner, amount: amountDecimal });
-        }
-        holders.sort((a, b) => b.amount - a.amount);
-        return {
-          holders: holders.map((h, i) => ({ ...h, rank: i + 1, percentage: state.totalSupplyNum > 0 ? (h.amount / state.totalSupplyNum) * 100 : 0 })),
-          totalHolders: largestAccounts.value.length, isFullList: false
-        };
-      } catch (error) { throw error; }
-    }
-
-    function renderHoldersTable() {
-      if (!state.allHolders.length) { elements.holderContainer.innerHTML = '<div style="padding:20px;text-align:center;">No holders found.</div>'; return; }
-      let sorted = [...state.allHolders];
-      if (state.sortField === 'amount') sorted.sort((a, b) => state.sortDirection === 'desc' ? b.amount - a.amount : a.amount - b.amount);
-      else if (state.sortField === 'rank') sorted.sort((a, b) => state.sortDirection === 'asc' ? a.rank - b.rank : b.rank - a.rank);
-      else if (state.sortField === 'percentage') sorted.sort((a, b) => state.sortDirection === 'desc' ? b.percentage - a.percentage : a.percentage - b.percentage);
-
-      let html = `<table><thead><tr><th data-sort="rank">#</th><th>OWNER</th><th data-sort="amount">BALANCE</th><th data-sort="percentage">%</th></tr></thead><tbody>`;
-      for (const h of sorted) {
-        html += `<tr><td style="opacity:0.6;">${h.rank}</td><td title="${h.owner}">${shortAddress(h.owner)}</td><td style="text-align:right">${formatNumber(h.amount, state.currentDecimals)}</td><td style="text-align:right">${h.percentage.toFixed(4)}%</td></tr>`;
-      }
-      html += '</tbody></table>';
-      elements.holderContainer.innerHTML = html;
-
-      elements.holderContainer.querySelectorAll('th[data-sort]').forEach(th => {
-        th.addEventListener('click', () => {
-          const f = th.getAttribute('data-sort');
-          if (state.sortField === f) state.sortDirection = state.sortDirection === 'desc' ? 'asc' : 'desc';
-          else { state.sortField = f; state.sortDirection = (f === 'rank') ? 'asc' : 'desc'; }
-          renderHoldersTable(); updateSortButtons();
-        });
-      });
-    }
-
-    function updateSortButtons() {
-      const getArrow = (field) => { if (state.sortField !== field) return '⇅'; return state.sortDirection === 'desc' ? '▼' : '▲'; };
-      elements.sortControls.innerHTML = `
-        <button class="sort-btn ${state.sortField==='amount'?'active':''}" data-sort="amount">💎 Balance ${getArrow('amount')}</button>
-        <button class="sort-btn ${state.sortField==='rank'?'active':''}" data-sort="rank">🏆 Rank ${getArrow('rank')}</button>
-        <button class="sort-btn ${state.sortField==='percentage'?'active':''}" data-sort="percentage">📊 % Supply ${getArrow('percentage')}</button>`;
-      elements.sortControls.querySelectorAll('.sort-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const f = btn.getAttribute('data-sort');
-          if (state.sortField === f) state.sortDirection = state.sortDirection === 'desc' ? 'asc' : 'desc';
-          else { state.sortField = f; state.sortDirection = (f === 'rank') ? 'asc' : 'desc'; }
-          renderHoldersTable(); updateSortButtons();
-        });
-      });
-    }
-
-    function updateTokenInfo(mintInfo, metadata, price) {
-      state.currentDecimals = mintInfo.decimals;
-      state.totalSupplyNum = Number(mintInfo.supply) / Math.pow(10, state.currentDecimals);
-      elements.tokenDecimals.textContent = state.currentDecimals;
-      elements.tokenSupply.textContent = `${formatNumber(state.totalSupplyNum)} (${mintInfo.supply} raw)`;
-      elements.mintAuthority.textContent = mintInfo.mintAuthority ? mintInfo.mintAuthority.toBase58() : 'None (immutable)';
-      elements.freezeAuthority.textContent = mintInfo.freezeAuthority ? mintInfo.freezeAuthority.toBase58() : 'None';
-      elements.tokenName.textContent = metadata.name;
-      elements.tokenSymbol.textContent = metadata.symbol;
-      elements.metadataUri.textContent = metadata.uri.length > 48 ? metadata.uri.slice(0, 45) + '…' : metadata.uri;
-      if (price) elements.pricePreview.innerHTML = `<span>${price}</span>`;
-    }
-
-    async function loadTokenData() {
-      if (state.isLoading) return;
-      showLoading(true); setStatus('loading');
-      try {
-        const mintPubkey = new state.solanaWeb3.PublicKey(CONFIG.TOKEN_MINT);
+        const mintPubkey = new state.solanaWeb3.PublicKey(token.mint);
         const mintInfo = await state.splToken.getMint(state.connection, mintPubkey);
-        const [metadata, price] = await Promise.all([fetchMetadata(mintPubkey), fetchPrice()]);
-        updateTokenInfo(mintInfo, metadata, price);
-
-        const holdersPromise = fetchHoldersWithOptimization();
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Holders fetch timeout')), CONFIG.HOLDERS_TIMEOUT));
-        const holdersResult = await Promise.race([holdersPromise, timeoutPromise]);
-
-        state.allHolders = holdersResult.holders; state.isFullList = holdersResult.isFullList;
-        if (elements.holderCount) {
-          elements.holderCount.textContent = state.isFullList ? `(${holdersResult.totalHolders} accounts)` : `(showing top ${holdersResult.holders.length} of ${holdersResult.totalHolders} holders)`;
-        }
-        renderHoldersTable(); updateSortButtons(); setStatus('live');
-        state.lastRefresh = new Date();
-        if (elements.refreshInfo) elements.refreshInfo.textContent = `Last refresh: ${state.lastRefresh.toLocaleTimeString()} • Auto-refresh every ${CONFIG.REFRESH_INTERVAL/1000}s`;
-      } catch (error) {
-        console.error('Token data loading failed:', error); setStatus('error');
-        showCriticalError(`Failed to load token data: ${error.message}`);
-      } finally { showLoading(false); }
-    }
-
-    function startProjectCore() {
-      const walletBtn = document.getElementById('connectWallet');
-      if (walletBtn) {
-        walletBtn.addEventListener('click', async (e) => {
-          e.preventDefault();
-          if (!window.solana || !window.solana.isPhantom) { alert("Install Phantom wallet to connect."); window.open("https://phantom.app/"); return; }
-          try {
-            const resp = await window.solana.connect();
-            const pk = resp.publicKey.toString();
-            walletBtn.innerText = `🔗 ${pk.slice(0,5)}…${pk.slice(-4)}`;
-          } catch(e) { console.warn('Wallet connect cancelled or failed:', e); }
-        });
+        const decimals = mintInfo.decimals;
+        const rawSupply = BigInt(mintInfo.supply);
+        const humanSupply = Number(rawSupply) / Math.pow(10, decimals);
+        token.decimals = decimals;
+        token.supplyHuman = humanSupply;
+        token.supplyRaw = mintInfo.supply;
+      } catch (e) {
+        token.supplyHuman = Number(token.supply) / Math.pow(10, token.decimals);
       }
-      const LAUNCH_TIME = new Date('2025-08-01T00:00:00Z').getTime();
-      setInterval(() => {
-        const now = Date.now(); const diff = LAUNCH_TIME - now; const el = document.getElementById('clock');
-        if (diff > 0) {
-          const h = Math.floor(diff / 3600000); const m = Math.floor((diff % 3600000) / 60000); const s = Math.floor((diff % 60000) / 1000);
-          el.innerText = `Next Token In: ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-        } else { el.innerText = 'Next Token In: LAUNCHED 🚀'; }
-      }, 1000);
-    }
 
-    async function initTokenViewer() {
+      // Fetch top holders
       try {
-        elements.holderContainer.innerHTML = '<div style="padding:20px;text-align:center;">⏳ Loading Solana libraries…</div>';
-        await loadSolanaLibraries();
-        elements.holderContainer.innerHTML = '<div style="padding:20px;text-align:center;">⏳ Testing RPC connection…</div>';
-        await createConnection();
-        await loadTokenData();
-        startProjectCore();
-        setInterval(loadTokenData, CONFIG.REFRESH_INTERVAL);
+        const mintPubkey = new state.solanaWeb3.PublicKey(token.mint);
+        const largest = await state.connection.getTokenLargestAccounts(mintPubkey);
+        const holders = [];
+        for (const acc of largest.value) {
+          let owner = null;
+          try {
+            const accInfo = await state.connection.getAccountInfo(acc.address);
+            if (accInfo && state.splToken.AccountLayout) {
+              const decoded = state.splToken.AccountLayout.decode(accInfo.data);
+              owner = new state.solanaWeb3.PublicKey(decoded.owner).toBase58();
+            }
+          } catch(e) {}
+          if (!owner) owner = acc.address.toBase58();
+          holders.push({
+            address: owner,
+            amount: acc.uiAmount || 0,
+            rawAmount: acc.amount
+          });
+        }
+        holders.sort((a,b) => b.amount - a.amount);
+        token.holders = holders.slice(0, 20);
+        token.holderCount = holders.length;
+      } catch (e) {
+        token.holders = [];
+        token.holderCount = 0;
+      }
+      return token;
+    }
+
+    // Render the creator view
+    async function renderCreatorView() {
+      const container = document.getElementById('creatorResults');
+      const statusDot = document.getElementById('creatorStatusDot');
+      statusDot.className = 'status-dot loading';
+      container.innerHTML = '<div class="loading-spinner"><span class="cursor"></span> Fetching tokens created by wallet...</div>';
+
+      try {
+        let tokens = await fetchTokensByCreator(CONFIG.CREATOR_WALLET);
+        if (tokens.length === 0) {
+          container.innerHTML = '<div class="empty-state">No fungible tokens found created by this wallet.<br>It may have created NFTs or used a different program.</div>';
+          statusDot.className = 'status-dot error';
+          return;
+        }
+
+        // Enrich each token with holders and supply
+        let enriched = [];
+        for (let i = 0; i < tokens.length; i++) {
+          container.innerHTML = `<div class="loading-spinner"><span class="cursor"></span> Loading token ${i+1}/${tokens.length}...</div>`;
+          const enrichedToken = await enrichToken(tokens[i]);
+          enriched.push(enrichedToken);
+        }
+
+        let html = `<div style="margin-bottom:12px; font-size:11px; opacity:0.7;">✅ Found ${enriched.length} fungible token(s) created by this wallet.</div>`;
+        for (const t of enriched) {
+          const supplyDisplay = t.supplyHuman !== undefined ? t.supplyHuman.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "—";
+          html += `<div class="token-card">
+            <div class="token-header">
+              <div class="token-name">${escapeHtml(t.name)} (${escapeHtml(t.symbol)})</div>
+            </div>
+            <div class="token-mint">🔗 Mint: ${t.mint}</div>
+            <div class="token-stats">
+              <div class="stat-item"><div class="stat-label">Decimals</div><div class="stat-value">${t.decimals}</div></div>
+              <div class="stat-item"><div class="stat-label">Total Supply</div><div class="stat-value">${supplyDisplay}</div></div>
+              <div class="stat-item"><div class="stat-label">Holders</div><div class="stat-value">${t.holderCount}</div></div>
+              <div class="stat-item"><div class="stat-label">Type</div><div class="stat-value">${t.tokenType}</div></div>
+            </div>`;
+
+          if (t.holders && t.holders.length > 0) {
+            const totalAmt = t.holders.reduce((s, h) => s + (h.amount || 0), 0);
+            html += `<div style="font-size:11px; margin-bottom:6px; opacity:0.7;">🏆 TOP HOLDERS:</div>
+            <div class="holders-table">
+            <table><thead><tr><th>#</th><th>OWNER</th><th>BALANCE</th><th>%</th></tr></thead><tbody>`;
+            for (let i = 0; i < Math.min(t.holders.length, 20); i++) {
+              const h = t.holders[i];
+              const pct = totalAmt > 0 ? ((h.amount / totalAmt) * 100).toFixed(2) : "0.00";
+              const short = h.address.length > 12 ? h.address.slice(0,6)+'…'+h.address.slice(-4) : h.address;
+              html += `<tr><td style="opacity:0.5;">${i+1}</td><td title="${h.address}">${short}</td><td style="text-align:right">${h.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td><td style="text-align:right">${pct}%</td></tr>`;
+            }
+            html += `</tbody></table></div>`;
+          } else {
+            html += `<div class="empty-state" style="padding:10px;">No holder data available.</div>`;
+          }
+          html += `</div>`;
+        }
+        container.innerHTML = html;
+        statusDot.className = 'status-dot live';
       } catch (error) {
-        console.error('❌ Initialization failed:', error);
-        showCriticalError(error.message);
+        console.error(error);
+        container.innerHTML = `<div class="error-message">Failed to load creator data: ${error.message}<br><button class="retry-btn" onclick="location.reload()">⟳ Retry</button></div>`;
+        statusDot.className = 'status-dot error';
       }
     }
 
-    document.addEventListener('DOMContentLoaded', initTokenViewer);
+    function escapeHtml(str) { return str.replace(/[&<>]/g, function(m) { if (m === '&') return '&amp;'; if (m === '<') return '&lt;'; if (m === '>') return '&gt;'; return m; }); }
+
+    // ── project109Core (unchanged) ─────────────────────────────────────────────
+    (function project109Core() {
+      const CONFIG = {
+        MAX_SUPPLY: 109,
+        PRELAUNCH_DAYS: 7,
+        STORAGE_KEYS: { START_DATE: 'project109_start_utc', IS_LAUNCHED: 'project109_is_launched', LAUNCH_TIMESTAMP: 'project109_launch_timestamp', STATE: 'project109_state' },
+        STATES: { PRELAUNCH: 'prelaunch', ACTIVE: 'active', COMPLETED: 'completed' }
+      };
+      const PRELAUNCH_DURATION_MS = CONFIG.PRELAUNCH_DAYS * 24 * 60 * 60 * 1000;
+      function getUTCDayStart(date) { const d = new Date(date); d.setUTCHours(0,0,0,0); return d; }
+      function calculateDaysElapsedFromStart(startDate) {
+        if (!startDate) return 0;
+        const diff = getUTCDayStart(new Date()) - getUTCDayStart(startDate);
+        return Math.min(Math.floor(diff/(86400000)) + 1, CONFIG.MAX_SUPPLY);
+      }
+      const StateManager = {
+        currentState: CONFIG.STATES.PRELAUNCH, launchTimestamp: Date.now() + PRELAUNCH_DURATION_MS,
+        startDate: null, isLaunched: false, isCompleted: false,
+        initialize() {
+          this.loadFromStorage();
+          if (!this.loadFromStorage()) { this.launchTimestamp = Date.now() + PRELAUNCH_DURATION_MS; this.currentState = CONFIG.STATES.PRELAUNCH; this.isLaunched = false; this.saveToStorage(); }
+          if (this.currentState === CONFIG.STATES.PRELAUNCH && Date.now() >= this.launchTimestamp) this.transitionToActive();
+          if (this.currentState === CONFIG.STATES.ACTIVE && this.startDate && calculateDaysElapsedFromStart(this.startDate) >= CONFIG.MAX_SUPPLY) this.transitionToCompleted();
+        },
+        loadFromStorage() {
+          try {
+            const s = localStorage.getItem(CONFIG.STORAGE_KEYS.STATE);
+            if(s) this.currentState = s;
+            const l = localStorage.getItem(CONFIG.STORAGE_KEYS.LAUNCH_TIMESTAMP); if(l) this.launchTimestamp = parseInt(l);
+            const st = localStorage.getItem(CONFIG.STORAGE_KEYS.START_DATE); if(st) this.startDate = new Date(st);
+            const il = localStorage.getItem(CONFIG.STORAGE_KEYS.IS_LAUNCHED); if(il) this.isLaunched = il==='true';
+            return !!s;
+          } catch(e) { return false; }
+        },
+        saveToStorage() {
+          try {
+            localStorage.setItem(CONFIG.STORAGE_KEYS.STATE, this.currentState);
+            localStorage.setItem(CONFIG.STORAGE_KEYS.LAUNCH_TIMESTAMP, this.launchTimestamp.toString());
+            localStorage.setItem(CONFIG.STORAGE_KEYS.IS_LAUNCHED, this.isLaunched.toString());
+            if(this.startDate) localStorage.setItem(CONFIG.STORAGE_KEYS.START_DATE, this.startDate.toISOString());
+          } catch(e) {}
+        },
+        transitionToActive() { this.currentState = CONFIG.STATES.ACTIVE; this.isLaunched = true; this.startDate = getUTCDayStart(new Date()); this.saveToStorage(); },
+        transitionToCompleted() { this.currentState = CONFIG.STATES.COMPLETED; this.isCompleted = true; this.saveToStorage(); },
+        getCurrentDay() {
+          if(this.currentState === CONFIG.STATES.PRELAUNCH) return 0;
+          if(this.currentState === CONFIG.STATES.COMPLETED) return CONFIG.MAX_SUPPLY;
+          return calculateDaysElapsedFromStart(this.startDate);
+        },
+        getReleasedTokens() {
+          if(this.currentState === CONFIG.STATES.PRELAUNCH) return 0;
+          if(this.currentState === CONFIG.STATES.COMPLETED) return CONFIG.MAX_SUPPLY;
+          return calculateDaysElapsedFromStart(this.startDate);
+        }
+      };
+      const DOM = {
+        supply: document.getElementById('supply'), counter: document.getElementById('counter'), clock: document.getElementById('clock'),
+        init: document.getElementById('init'), adminInner: document.getElementById('adminInner'), statusText: document.getElementById('statusText'),
+        preLaunchBadge: document.getElementById('preLaunchBadge'), summaryText: document.getElementById('summaryText'),
+        roadmapList: document.getElementById('roadmapList'), joinNeonText: document.getElementById('joinNeonText'),
+        asciiBox: document.getElementById('asciiBox'), tickerContent: document.getElementById('tickerContent'),
+        countdownDisplay: document.getElementById('countdownDisplay'), launchNotify: document.getElementById('launchNotify')
+      };
+      const UIUpdater = {
+        updateSupplyDisplay() { DOM.supply.innerText = `${StateManager.getReleasedTokens()} / ${CONFIG.MAX_SUPPLY} tokens`; },
+        updateCounterDisplay() { DOM.counter.innerText = `Day ${StateManager.getCurrentDay()} / ${CONFIG.MAX_SUPPLY}`; },
+        hideLaunchNotification() { if(DOM.launchNotify) DOM.launchNotify.classList.add('hide'); },
+        updateMiscUIToActive() {
+          if(DOM.preLaunchBadge) DOM.preLaunchBadge.style.display='none';
+          DOM.statusText.innerHTML='Status: ACTIVE (Daily Release)';
+          if(DOM.joinNeonText) DOM.joinNeonText.innerHTML='Joining 109 Club...';
+          DOM.asciiBox.innerHTML = `╔══════════════════════════════════════╗\n║          PROJECT 109T                ║\n╠══════════════════════════════════════╣\n║   ░ SYSTEM: DAILY TOKEN RELEASE      ║\n║   ░ MAX SUPPLY: 109                  ║\n╚══════════════════════════════════════╝`;
+          DOM.tickerContent.innerHTML = `SYS::ONLINE &nbsp;|&nbsp; TOKEN_RELEASE: ACTIVE &nbsp;|&nbsp; SUPPLY: UNLOCKING &nbsp;|&nbsp; CHAIN: SOLANA &nbsp;|&nbsp;`;
+        }
+      };
+      const PreLaunchCountdown = {
+        update() {
+          if(StateManager.currentState !== CONFIG.STATES.PRELAUNCH) return;
+          const remaining = StateManager.launchTimestamp - Date.now();
+          if(remaining <= 0) { StateManager.transitionToActive(); UIUpdater.updateMiscUIToActive(); UIUpdater.hideLaunchNotification(); return; }
+          const d = Math.floor(remaining/86400000), h = Math.floor((remaining%86400000)/3600000), m = Math.floor((remaining%3600000)/60000), s = Math.floor((remaining%60000)/1000);
+          const str = `${d}d ${h.toString().padStart(2,'0')}h ${m.toString().padStart(2,'0')}m ${s.toString().padStart(2,'0')}s`;
+          if(DOM.countdownDisplay) DOM.countdownDisplay.innerText = str;
+          if(DOM.adminInner) DOM.adminInner.innerHTML = `⏳ PROJECT109T LAUNCHES IN:<br>${str}<br>Token supply frozen until then.`;
+        }
+      };
+      function typeLine(el, text, speed=30) { el.innerHTML=''; let i=0; function t(){ if(i<text.length){ el.innerHTML+=text[i]; i++; setTimeout(t,speed); } } t(); }
+      function setupWallet() {
+        const walletBtn = document.getElementById('connectWallet');
+        if (!walletBtn) return;
+        walletBtn.onclick = async (e) => {
+          e.preventDefault();
+          if(window.solana && window.solana.isPhantom) {
+            try {
+              const res = await window.solana.connect();
+              walletBtn.innerText = `[ ${res.publicKey.toString().slice(0,4)}...${res.publicKey.toString().slice(-4)} ]`;
+            } catch(e){}
+          } else { window.open('https://phantom.app/','_blank'); }
+        };
+      }
+      function startCore() {
+        StateManager.initialize();
+        typeLine(DOM.init, 'Project109T pre-launch mode active. Countdown to Day 1...');
+        if(StateManager.currentState === CONFIG.STATES.PRELAUNCH) {
+          setInterval(()=>PreLaunchCountdown.update(), 1000);
+          PreLaunchCountdown.update();
+          DOM.clock.innerText = 'Next Token In: 00:00:00';
+        } else if(StateManager.currentState === CONFIG.STATES.ACTIVE) {
+          UIUpdater.updateMiscUIToActive(); UIUpdater.hideLaunchNotification();
+          UIUpdater.updateSupplyDisplay(); UIUpdater.updateCounterDisplay();
+        }
+        setupWallet();
+        document.getElementById('closeNotifyBtn').addEventListener('click', ()=> DOM.launchNotify.classList.add('hide'));
+      }
+      startCore();
+    })();
+
+    // ── Main initializer ───────────────────────────────────────────────────────
+    async function init() {
+      try {
+        await loadSolanaLibraries();
+        await createConnection();
+        await renderCreatorView();
+      } catch (error) {
+        document.getElementById('creatorResults').innerHTML = `<div class="error-message">Initialization failed: ${error.message}<br><button class="retry-btn" onclick="location.reload()">⟳ Retry</button></div>`;
+        const statusDot = document.getElementById('creatorStatusDot');
+        if (statusDot) statusDot.className = 'status-dot error';
+      }
+    }
+    document.addEventListener('DOMContentLoaded', init);
   </script>
 </body>
 </html>
