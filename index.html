@@ -116,10 +116,13 @@
       TOKEN_PROGRAM_ID: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
       METADATA_PROGRAM_ID: "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s",
       JUPITER_PRICE_API: "https://quote-api.jup.ag/v6/price",
+      QUICKNODE_HTTP: "https://still-tiniest-dinghy.solana-mainnet.quiknode.pro/fa788fad772541fd7c70be3315e1d83ac0331f0b",
+      QUICKNODE_WS: "wss://still-tiniest-dinghy.solana-mainnet.quiknode.pro/fa788fad772541fd7c70be3315e1d83ac0331f0b",
       HELIUS_API_KEY: "70da5c4d-b87b-4842-bfd5-a9977e4aed1c",
-      get HTTP_ENDPOINT() { return `https://mainnet.helius-rpc.com/?api-key=${this.HELIUS_API_KEY}`; },
-      get WS_ENDPOINT() { return `wss://mainnet.helius-rpc.com/?api-key=${this.HELIUS_API_KEY}`; },
+      get HTTP_ENDPOINT() { return this.QUICKNODE_HTTP; },
+      get WS_ENDPOINT() { return this.QUICKNODE_WS; },
       FALLBACK_HTTP_ENDPOINTS: [
+        `https://mainnet.helius-rpc.com/?api-key=70da5c4d-b87b-4842-bfd5-a9977e4aed1c`,
         "https://api.mainnet-beta.solana.com",
         "https://rpc.ankr.com/solana"
       ],
@@ -148,9 +151,14 @@
     function shortAddress(addr) { return addr.slice(0, 5) + '…' + addr.slice(-4); }
     function formatNumber(num, decimals = 0) { return num.toLocaleString(undefined, { maximumFractionDigits: decimals }); }
     function setStatus(type) { if (elements.statusDot) elements.statusDot.className = 'status-dot ' + type; }
-    function showCriticalError(message) { 
-      const container = elements.holderContainer; 
-      container.innerHTML = `<div class="error-message">CRITICAL ERROR:\n${message}\n\nPlease copy this message and try searching it, or disable ad-blockers/CORS shields.</div>`; 
+    function showCriticalError(message) {
+      const container = elements.holderContainer;
+      const isLibError = message.includes('Solana libraries') || message.includes('CDN');
+      const hint = isLibError
+        ? `\n\n🛠 FIXES TO TRY:\n  1. Disable your ad-blocker / browser shield for this page\n  2. Try a different browser (Chrome or Firefox)\n  3. Disable browser extensions one by one\n  4. Check your internet connection\n  5. If on a corporate/school network, it may be firewall-blocked`
+        : `\n\nPlease copy this message and try searching it, or disable ad-blockers/CORS shields.`;
+      container.innerHTML = `<div class="error-message">CRITICAL ERROR:\n${message}${hint}</div>
+        <button class="retry-btn" onclick="location.reload()">⟳ Retry</button>`;
     }
     function showLoading(show = true) { if (elements.holderLoading) elements.holderLoading.style.display = show ? 'flex' : 'none'; state.isLoading = show; }
 
@@ -165,91 +173,238 @@
       if(el) el.textContent = tickerText + tickerText;
     })();
 
-    async function loadScript(src) {
+    // ── Manual SPL replacement ────────────────────────────────────────────────
+    // @solana/spl-token has no reliable browser IIFE build, so we implement
+    // the two functions we actually need: getMint() and AccountLayout.decode()
+    // using raw buffer maths on the on-chain account data.
+    const ManualSPL = {
+      // Mint account layout (82 bytes):
+      //  0: mintAuthorityOption u32
+      //  4: mintAuthority       [32]
+      // 36: supply              u64 LE
+      // 44: decimals            u8
+      // 45: isInitialized       u8
+      // 46: freezeAuthorityOption u32
+      // 50: freezeAuthority     [32]
+      getMint: async function(connection, mintPubkey) {
+        const info = await connection.getAccountInfo(mintPubkey);
+        if (!info) throw new Error('Mint account not found');
+        const d = info.data;
+        const readU32  = (o) => (d[o] | d[o+1]<<8 | d[o+2]<<16 | d[o+3]<<24) >>> 0;
+        const readU64  = (o) => {
+          const lo = readU32(o), hi = readU32(o+4);
+          return (BigInt(hi) << 32n | BigInt(lo >>> 0)).toString();
+        };
+        const mintAuthOpt   = readU32(0);
+        const mintAuthority = mintAuthOpt ? new state.solanaWeb3.PublicKey(d.slice(4,  36)) : null;
+        const supply        = readU64(36);
+        const decimals      = d[44];
+        const freezeOpt     = readU32(46);
+        const freezeAuthority = freezeOpt ? new state.solanaWeb3.PublicKey(d.slice(50, 82)) : null;
+        return { mintAuthority, supply, decimals, freezeAuthority, isInitialized: d[45] === 1 };
+      },
+      // Token account layout (165 bytes):
+      //  0: mint   [32]
+      // 32: owner  [32]
+      // 64: amount u64 LE
+      AccountLayout: {
+        decode: function(d) {
+          const readU64 = (o) => {
+            let lo = 0, hi = 0;
+            for (let i = 0; i < 4; i++) lo |= d[o+i] << (i*8);
+            for (let i = 0; i < 4; i++) hi |= d[o+4+i] << (i*8);
+            return BigInt(hi >>> 0) << 32n | BigInt(lo >>> 0);
+          };
+          return {
+            mint:   d.slice(0, 32),
+            owner:  d.slice(32, 64),
+            amount: readU64(64)
+          };
+        }
+      }
+    };
+    // ─────────────────────────────────────────────────────────────────────────
+
+    async function loadScript(src, timeoutMs = 12000) {
       return new Promise((resolve, reject) => {
-        if (document.querySelector(`script[src="${src}"]`)) return resolve();
+        const existing = document.querySelector(`script[src="${src}"]`);
+        if (existing) { existing.remove(); }
         const script = document.createElement('script');
-        script.src = src; script.onload = resolve; script.onerror = reject;
+        script.src = src;
+        script.crossOrigin = 'anonymous';
+        const timer = setTimeout(() => { script.remove(); reject(new Error(`Timeout loading ${src}`)); }, timeoutMs);
+        script.onload = () => { clearTimeout(timer); resolve(); };
+        script.onerror = () => { clearTimeout(timer); script.remove(); reject(new Error(`Failed to load ${src}`)); };
         document.head.appendChild(script);
       });
     }
 
     async function loadSolanaLibraries() {
-      // FIX: PINNED VERSIONS! @latest breaks because web3.js v2.0 doesn't expose window.solanaWeb3 properly
-      const CDNS = [
-        { 
-          web3: "https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js", 
-          spl: "https://unpkg.com/@solana/spl-token@0.3.11/lib/index.iife.min.js" 
-        },
-        { 
-          web3: "https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.3/lib/index.iife.min.js", 
-          spl: "https://cdn.jsdelivr.net/npm/@solana/spl-token@0.3.11/lib/index.iife.min.js" 
-        }
+      // Only web3.js needed — spl-token replaced by ManualSPL above.
+      // PINNED to v1.x: v2.0 does not expose window.solanaWeb3.
+      const WEB3_CDNS = [
+        "https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js",
+        "https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.3/lib/index.iife.min.js",
+        "https://unpkg.com/@solana/web3.js@1.91.9/lib/index.iife.min.js",
+        "https://cdn.jsdelivr.net/npm/@solana/web3.js@1.91.9/lib/index.iife.min.js"
       ];
-      
-      for (const cdn of CDNS) {
+
+      const errors = [];
+      for (const url of WEB3_CDNS) {
         try {
-          await loadScript(cdn.web3); await loadScript(cdn.spl);
-          if (window.solanaWeb3 && window.splToken) {
-            state.solanaWeb3 = window.solanaWeb3; state.splToken = window.splToken;
+          elements.holderContainer.innerHTML = `<div style="padding:20px;text-align:center;">⏳ Loading Solana from ${new URL(url).hostname}…</div>`;
+          await loadScript(url);
+          if (window.solanaWeb3) {
+            state.solanaWeb3 = window.solanaWeb3;
+            state.splToken   = ManualSPL;   // ← our built-in replacement
+            console.log(`✅ web3.js loaded from ${new URL(url).hostname} | using built-in SPL parser`);
             return;
-          } else {
-            throw new Error("Libraries loaded but window.solanaWeb3 is missing.");
           }
-        } catch (e) { 
-          console.warn(`CDN failed: ${cdn.web3}`, e); 
+          errors.push(`${new URL(url).hostname}: loaded but window.solanaWeb3 missing`);
+        } catch (e) {
+          errors.push(`${new URL(url).hostname}: ${e.message}`);
+          console.warn('CDN failed:', e);
         }
       }
-      throw new Error("Could not load Solana libraries v1.x from any CDN. Check your internet or ad-blocker.");
+      throw new Error(`Could not load @solana/web3.js from any CDN. Check your internet connection.\n\nDetails:\n${errors.join('\n')}`);
     }
 
-    // NEW: Direct raw fetch test to bypass Web3.js and see the exact network error
-    async function testRawRpcConnection(url) {
-      try {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getBlockHeight' })
+    // ── WebSocket RPC client ─────────────────────────────────────────────────
+    // HTTP fetch() from browsers is blocked by CORS on every Solana RPC provider.
+    // WebSocket is NOT subject to the same CORS rules — browsers allow WS
+    // connections to any origin. We use this to bypass the CORS wall entirely.
+    class WSRpcConnection {
+      constructor(wsUrl, commitment = 'confirmed') {
+        this.wsUrl  = wsUrl;
+        this.commitment = commitment;
+        this.ws     = null;
+        this._q     = new Map();
+        this._id    = 1;
+      }
+
+      _ensureOpen() {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) return Promise.resolve();
+        return new Promise((res, rej) => {
+          this.ws = new WebSocket(this.wsUrl);
+          this.ws.onopen = res;
+          this.ws.onerror = () => rej(new Error('WS handshake failed: ' + this.wsUrl));
+          this.ws.onclose = () => {
+            for (const [, p] of this._q) p.rej(new Error('WebSocket closed'));
+            this._q.clear();
+          };
+          this.ws.onmessage = ({ data }) => {
+            try {
+              const msg = JSON.parse(data);
+              if (msg.id != null && this._q.has(msg.id)) {
+                const { res, rej, t } = this._q.get(msg.id);
+                clearTimeout(t); this._q.delete(msg.id);
+                if (msg.error) rej(new Error(msg.error.message));
+                else res(msg.result);
+              }
+            } catch(e) {}
+          };
         });
-        if (!response.ok) {
-          const text = await response.text();
-          throw new Error(`HTTP ${response.status} - ${text}`);
-        }
-        const json = await response.json();
-        if (json.error) throw new Error(`RPC Error: ${json.error.message}`);
-        return true;
-      } catch (err) {
-        console.error(`Raw test failed for ${url}:`, err);
-        throw new Error(`Fetch to ${url} failed: ${err.message}`);
+      }
+
+      async _call(method, params) {
+        await this._ensureOpen();
+        const id = this._id++;
+        return new Promise((res, rej) => {
+          const t = setTimeout(() => { this._q.delete(id); rej(new Error('RPC timeout: ' + method)); }, 30000);
+          this._q.set(id, { res, rej, t });
+          this.ws.send(JSON.stringify({ jsonrpc: '2.0', id, method, params }));
+        });
+      }
+
+      async getSlot()        { return this._call('getSlot',       [{ commitment: this.commitment }]); }
+      async getBlockHeight() { return this._call('getBlockHeight', [{ commitment: this.commitment }]); }
+
+      _b64toBuffer(b64) {
+        const bin = atob(b64), buf = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+        // Attach Buffer-style helpers needed by ManualSPL & metadata parser
+        buf.readUInt32LE = (o) => buf[o] | buf[o+1]<<8 | buf[o+2]<<16 | buf[o+3]<<24;
+        buf.readBigUInt64LE = (o) => {
+          const lo = buf.readUInt32LE(o), hi = buf.readUInt32LE(o+4);
+          return BigInt(hi>>>0) << 32n | BigInt(lo>>>0);
+        };
+        buf.slice  = (a,b) => { const s = buf.subarray(a,b); s.readUInt32LE = buf.readUInt32LE; s.readBigUInt64LE = buf.readBigUInt64LE; s.slice = buf.slice; s.toString = buf.toString; return s; };
+        buf.toString = (enc) => { let s=''; for (const c of buf) s += String.fromCharCode(c); return s; };
+        return buf;
+      }
+
+      async getAccountInfo(pubkeyOrStr) {
+        const addr = typeof pubkeyOrStr === 'string' ? pubkeyOrStr : pubkeyOrStr.toBase58();
+        const res  = await this._call('getAccountInfo', [addr, { encoding: 'base64', commitment: this.commitment }]);
+        if (!res || !res.value) return null;
+        return { data: this._b64toBuffer(res.value.data[0]), owner: res.value.owner, lamports: res.value.lamports };
+      }
+
+      async getProgramAccounts(progIdOrStr, cfg = {}) {
+        const addr   = typeof progIdOrStr === 'string' ? progIdOrStr : progIdOrStr.toBase58();
+        const rpcCfg = { encoding: 'base64', commitment: this.commitment };
+        if (cfg.filters)   rpcCfg.filters   = cfg.filters;
+        if (cfg.dataSlice) rpcCfg.dataSlice  = cfg.dataSlice;
+        const res = await this._call('getProgramAccounts', [addr, rpcCfg]);
+        return (res || []).map(item => ({
+          pubkey:  new state.solanaWeb3.PublicKey(item.pubkey),
+          account: { ...item.account, data: this._b64toBuffer(item.account.data[0]) }
+        }));
+      }
+
+      async getTokenLargestAccounts(mintOrStr) {
+        const addr = typeof mintOrStr === 'string' ? mintOrStr : mintOrStr.toBase58();
+        const res  = await this._call('getTokenLargestAccounts', [addr, { commitment: this.commitment }]);
+        return {
+          value: (res ? res.value : []).map(v => ({
+            address: new state.solanaWeb3.PublicKey(v.address),
+            amount: v.amount, uiAmount: v.uiAmount
+          }))
+        };
       }
     }
+    // ─────────────────────────────────────────────────────────────────────────
 
     async function createConnection() {
-      const endpointsToTry = [CONFIG.HTTP_ENDPOINT, ...CONFIG.FALLBACK_HTTP_ENDPOINTS];
-      let lastError = "";
-      
-      for (const httpUrl of endpointsToTry) {
-        try {
-          // Step 1: Raw fetch test
-          await testRawRpcConnection(httpUrl);
+      const HTTP_ENDPOINTS = [CONFIG.HTTP_ENDPOINT, ...CONFIG.FALLBACK_HTTP_ENDPOINTS];
+      const WS_ENDPOINTS   = [
+        CONFIG.QUICKNODE_WS,
+        `wss://mainnet.helius-rpc.com/?api-key=${CONFIG.HELIUS_API_KEY}`,
+        'wss://api.mainnet-beta.solana.com'
+      ];
+      const errors = [];
 
-          // Step 2: Web3.js connection
-          const conn = new state.solanaWeb3.Connection(httpUrl, {
-            commitment: 'confirmed',
-            wsEndpoint: CONFIG.WS_ENDPOINT
-          });
-          
-          await conn.getBlockHeight(); 
-          
+      // ── Pass 1: try HTTP via web3.js (works if CORS is configured) ──────
+      for (const url of HTTP_ENDPOINTS) {
+        try {
+          elements.holderContainer.innerHTML = `<div style="padding:20px;text-align:center;">⏳ Trying HTTP: ${new URL(url).hostname}…</div>`;
+          const conn = new state.solanaWeb3.Connection(url, { commitment: 'confirmed' });
+          await conn.getSlot();
           state.connection = conn;
-          console.log(`✅ Connected to RPC: ${httpUrl}`);
+          console.log('✅ HTTP RPC connected:', url);
           return;
-        } catch (e) { 
-          lastError = e.message;
-          console.warn(`RPC failed: ${httpUrl}`, e); 
+        } catch(e) {
+          errors.push('HTTP ' + new URL(url).hostname + ': ' + e.message);
+          console.warn('HTTP RPC failed:', url, e);
         }
       }
-      throw new Error(`Could not connect to any RPC. Last error: ${lastError}`);
+
+      // ── Pass 2: WebSocket fallback — bypasses CORS entirely ─────────────
+      for (const wsUrl of WS_ENDPOINTS) {
+        try {
+          elements.holderContainer.innerHTML = `<div style="padding:20px;text-align:center;">⏳ Trying WebSocket: ${wsUrl.split('/')[2]}…</div>`;
+          const conn = new WSRpcConnection(wsUrl);
+          await conn.getSlot();
+          state.connection = conn;
+          console.log('✅ WebSocket RPC connected:', wsUrl);
+          return;
+        } catch(e) {
+          errors.push('WS ' + wsUrl.split('/')[2] + ': ' + e.message);
+          console.warn('WS RPC failed:', wsUrl, e);
+        }
+      }
+
+      throw new Error('Could not connect to any Solana RPC endpoint.\n\nTried:\n' + errors.join('\n'));
     }
 
     async function fetchMetadata(mintPubkey) {
