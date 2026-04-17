@@ -15,9 +15,7 @@
     .terminal { width: 95%; max-width: 1100px; background: #000; border-radius: 10px; padding: 20px; position: relative; box-shadow: 0 0 10px rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.1); z-index: 2; }
     .terminal-header { display: flex; gap: 8px; margin-bottom: 15px; }
     .dot { width: 12px; height: 12px; border-radius: 50%; box-shadow: 0 0 5px currentColor; animation: glow 1.5s infinite ease-in-out; }
-    .red { background: #ff5f56; }
-    .yellow { background: #ffbd2e; }
-    .green { background: #27c93f; }
+    .red { background: #ff5f56; } .yellow { background: #ffbd2e; } .green { background: #27c93f; }
     .line { margin: 6px 0; }
     .prompt::before { content: "> "; color: #fff; }
     .button { display: inline-block; margin-top: 15px; padding: 10px 18px; border: 1px solid #fff; color: #fff; text-decoration: none; border-radius: 6px; transition: 0.25s; cursor: none; }
@@ -51,13 +49,11 @@
     .retry-btn { background: #333; border: 1px solid #fff; padding: 6px 12px; border-radius: 4px; cursor: pointer; margin-top: 10px; color: #fff; font-family: inherit; }
     .pre-launch-badge { display: inline-block; background: #000; border: 1px solid #ffaa33; color: #ffaa33; font-size: 11px; padding: 2px 8px; border-radius: 20px; margin-left: 10px; animation: badgePulse 2s infinite; }
     @keyframes badgePulse { 0%,100% { opacity: 0.7; } 50% { opacity: 1; border-color: #ffcc66; } }
-    .holder-table-scroll { max-height: 400px; overflow-y: auto; }
+    .holder-table-scroll { max-height: 400px; overflow-y: auto; margin-top: 8px; }
     .holder-table-scroll::-webkit-scrollbar { width: 4px; }
     .holder-table-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 2px; }
     .status-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; animation: statusPulse 2s infinite; }
-    .status-dot.live { background: #27c93f; }
-    .status-dot.error { background: #ff5f56; }
-    .status-dot.loading { background: #ffbd2e; }
+    .status-dot.live { background: #27c93f; } .status-dot.error { background: #ff5f56; } .status-dot.loading { background: #ffbd2e; }
     @keyframes statusPulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
     .refresh-info { font-size: 10px; opacity: 0.4; margin-top: 6px; }
   </style>
@@ -68,12 +64,7 @@
   <div class="terminal">
     <div class="corner-bracket tl"></div><div class="corner-bracket tr"></div>
     <div class="corner-bracket bl"></div><div class="corner-bracket br"></div>
-
-    <!-- FIX #5: Duplicated ticker content for seamless scroll -->
-    <div class="data-ticker">
-      <span class="data-ticker-inner" id="tickerContent"></span>
-    </div>
-
+    <div class="data-ticker"><span class="data-ticker-inner" id="tickerContent"></span></div>
     <div class="terminal-header"><div class="dot red"></div><div class="dot yellow"></div><div class="dot green"></div></div>
     <pre class="logo">
 ██████╗ ██████╗  ██████╗      ██╗███████╗ ██████╗████████╗
@@ -106,14 +97,12 @@
           <div id="holderSortControls"></div>
         </div>
         <div id="holderLoadingMsg" class="loading-spinner" style="display: none;"><span class="cursor-blink"></span> Fetching holders…</div>
-        <!-- FIX #8: Scrollable container for large holder lists -->
-        <div id="holderResultsContainer" class="holder-table-scroll" style="margin-top:8px;">
+        <div id="holderResultsContainer" class="holder-table-scroll">
           <div style="padding:20px; text-align:center;">Loading libraries…</div>
         </div>
         <div class="refresh-info" id="refreshInfo"></div>
       </div>
     </div>
-
     <div class="line prompt">Total Released: <span id="supply">0 / 109 tokens</span> <span class="pre-launch-badge">PRE-LAUNCH</span></div>
     <div class="line prompt" id="clock">Next Token In: --:--:--</div>
     <div class="line prompt" id="counter">Day 0 / 109</div>
@@ -124,361 +113,308 @@
   </div>
 
   <script>
-    // ---------- CUSTOM CURSOR ----------
-    (function(){
+    // ==================== CONFIGURATION ====================
+    const CONFIG = {
+      TOKEN_MINT: "B7aNmmvPANVuqKgnEMAJzY6sUB6pcebZCxWUqzvApump",
+      TOKEN_PROGRAM_ID: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      METADATA_PROGRAM_ID: "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s",
+      JUPITER_PRICE_API: "https://quote-api.jup.ag/v6/price",
+      RPC_URLS: [
+        "https://mainnet.helius-rpc.com/?api-key=70da5c4d-b87b-4842-bfd5-a9977e4aed1c",
+        "https://api.mainnet-beta.solana.com",
+        "https://rpc.ankr.com/solana"
+      ],
+      REFRESH_INTERVAL: 45000,
+      HOLDERS_TIMEOUT: 30000,
+      MAX_HOLDERS_DISPLAY: 100
+    };
+
+    // ==================== STATE ====================
+    const state = {
+      connection: null, solanaWeb3: null, splToken: null,
+      currentDecimals: 0, totalSupplyNum: 0, allHolders: [],
+      sortField: 'amount', sortDirection: 'desc',
+      isLoading: false, lastRefresh: null, isFullList: true
+    };
+
+    // ==================== DOM ELEMENTS ====================
+    const elements = {
+      tokenName: document.getElementById('tokenName'),
+      tokenSymbol: document.getElementById('tokenSymbol'),
+      tokenDecimals: document.getElementById('tokenDecimals'),
+      tokenSupply: document.getElementById('tokenSupply'),
+      mintAuthority: document.getElementById('mintAuthority'),
+      freezeAuthority: document.getElementById('freezeAuthority'),
+      metadataUri: document.getElementById('metadataUri'),
+      holderContainer: document.getElementById('holderResultsContainer'),
+      holderLoading: document.getElementById('holderLoadingMsg'),
+      sortControls: document.getElementById('holderSortControls'),
+      pricePreview: document.getElementById('pricePreview'),
+      statusDot: document.getElementById('statusDot'),
+      holderCount: document.getElementById('holderCount'),
+      refreshInfo: document.getElementById('refreshInfo')
+    };
+
+    // ==================== UTILITIES ====================
+    function shortAddress(addr) { return addr.slice(0, 5) + '…' + addr.slice(-4); }
+    function formatNumber(num, decimals = 0) { return num.toLocaleString(undefined, { maximumFractionDigits: decimals }); }
+    function setStatus(type) { if (elements.statusDot) elements.statusDot.className = 'status-dot ' + type; }
+    function showError(message, container = elements.holderContainer) { if (container) container.innerHTML = `<div class="error-message">⚠️ ${message}</div>`; }
+    function showLoading(show = true) { if (elements.holderLoading) elements.holderLoading.style.display = show ? 'flex' : 'none'; state.isLoading = show; }
+
+    // Custom Cursor
+    (function() {
       const c = document.getElementById('customCursor');
-      if(c) document.addEventListener('mousemove', e => {
-        c.style.left = e.clientX + 'px';
-        c.style.top  = e.clientY + 'px';
-      });
+      if(c) document.addEventListener('mousemove', e => { c.style.left = e.clientX + 'px'; c.style.top = e.clientY + 'px'; });
     })();
 
-    // ---------- FIX #5: INIT TICKER WITH DUPLICATED CONTENT ----------
-    (function(){
+    // Ticker Duplicate for Animation
+    (function() {
       const tickerText = '⚡ TOKEN VIEWER ACTIVE ⚡ | B7aNmmvPANVuqKgnEMAJzY6sUB6pcebZCxWUqzvApump ⚡ ';
       const el = document.getElementById('tickerContent');
-      // Duplicate so translateX(-50%) loops seamlessly
-      el.textContent = tickerText + tickerText;
+      if(el) el.textContent = tickerText + tickerText;
     })();
 
-    // ---------- FIX #7: REMOVED DEAD SKYPACK FALLBACK ----------
-    async function loadSolanaLibraries() {
-      const CDNS = [
-        {
-          web3: "https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js",
-          spl:  "https://unpkg.com/@solana/spl-token@latest/lib/index.iife.min.js"
-        },
-        {
-          web3: "https://cdn.jsdelivr.net/npm/@solana/web3.js@latest/lib/index.iife.min.js",
-          spl:  "https://cdn.jsdelivr.net/npm/@solana/spl-token@latest/lib/index.iife.min.js"
-        }
-      ];
-
-      for (const cdn of CDNS) {
-        try {
-          console.log(`Attempting to load from ${cdn.web3}`);
-          await loadScript(cdn.web3);
-          await loadScript(cdn.spl);
-          if (window.solanaWeb3 && window.splToken) {
-            console.log("✅ Libraries loaded successfully");
-            return { solanaWeb3: window.solanaWeb3, splToken: window.splToken };
-          }
-        } catch(e) {
-          console.warn(`CDN failed: ${cdn.web3}`, e);
-        }
-      }
-      throw new Error("Could not load Solana libraries from any CDN. Check your internet connection or disable ad-blocker.");
-    }
-
-    function loadScript(src) {
+    // ==================== LIBRARY LOADER ====================
+    async function loadScript(src) {
       return new Promise((resolve, reject) => {
-        // Avoid duplicate injection
-        if (document.querySelector(`script[src="${src}"]`)) {
-          return resolve();
-        }
+        if (document.querySelector(`script[src="${src}"]`)) return resolve();
         const script = document.createElement('script');
-        script.src = src;
-        script.onload  = () => resolve();
-        script.onerror = () => reject(new Error(`Failed to load ${src}`));
+        script.src = src; script.onload = resolve; script.onerror = reject;
         document.head.appendChild(script);
       });
     }
 
-    // ---------- MAIN APP ----------
-    async function initApp() {
-      const holderContainer = document.getElementById('holderResultsContainer');
-      holderContainer.innerHTML = '<div style="padding:20px;text-align:center;">⏳ Loading Solana libraries… (this may take a few seconds)</div>';
-      try {
-        const { solanaWeb3, splToken } = await loadSolanaLibraries();
-        window.solanaWeb3 = solanaWeb3;
-        window.splToken   = splToken;
-        startTokenViewer(solanaWeb3, splToken);
-        startProjectCore();
-      } catch(err) {
-        console.error(err);
-        holderContainer.innerHTML = `<div class="error-message">⚠️ ${err.message}<br><button class="retry-btn" onclick="location.reload()">Retry</button></div>`;
+    async function loadSolanaLibraries() {
+      const CDNS = [
+        { web3: "https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js", spl: "https://unpkg.com/@solana/spl-token@latest/lib/index.iife.min.js" },
+        { web3: "https://cdn.jsdelivr.net/npm/@solana/web3.js@latest/lib/index.iife.min.js", spl: "https://cdn.jsdelivr.net/npm/@solana/spl-token@latest/lib/index.iife.min.js" }
+      ];
+      for (const cdn of CDNS) {
+        try {
+          await loadScript(cdn.web3); await loadScript(cdn.spl);
+          if (window.solanaWeb3 && window.splToken) {
+            state.solanaWeb3 = window.solanaWeb3; state.splToken = window.splToken;
+            return;
+          }
+        } catch (e) { console.warn(`CDN failed: ${cdn.web3}`, e); }
       }
+      throw new Error("Could not load Solana libraries. Check connection/ad-blocker.");
     }
 
-    function startTokenViewer(solanaWeb3, splToken) {
-      const TOKEN_MINT = "B7aNmmvPANVuqKgnEMAJzY6sUB6pcebZCxWUqzvApump";
-
-      // FIX #3 & #6: Use Solana public RPC (no leaked keys).
-      // For production, proxy through your own backend. 
-      // Public endpoints have rate limits — replace with your own
-      // dedicated endpoint for reliability.
-      const RPC_URL = "https://api.mainnet-beta.solana.com";
-
-      let connection     = new solanaWeb3.Connection(RPC_URL, 'confirmed');
-      let allHolders     = [];
-      let currentDecimals = 0;
-      let totalSupplyNum  = 0;
-      let sortField      = 'amount';
-      let sortDirection  = 'desc';
-      let lastRefresh    = null;
-
-      const elements = {
-        tokenName:      document.getElementById('tokenName'),
-        tokenSymbol:    document.getElementById('tokenSymbol'),
-        tokenDecimals:  document.getElementById('tokenDecimals'),
-        tokenSupply:    document.getElementById('tokenSupply'),
-        mintAuthority:  document.getElementById('mintAuthority'),
-        freezeAuthority:document.getElementById('freezeAuthority'),
-        metadataUri:    document.getElementById('metadataUri'),
-        holderContainer:document.getElementById('holderResultsContainer'),
-        holderLoading:  document.getElementById('holderLoadingMsg'),
-        sortControls:   document.getElementById('holderSortControls'),
-        pricePreview:   document.getElementById('pricePreview'),
-        statusDot:      document.getElementById('statusDot'),
-        holderCount:    document.getElementById('holderCount'),
-        refreshInfo:    document.getElementById('refreshInfo')
-      };
-
-      function short(addr) { return addr.slice(0,5) + '…' + addr.slice(-4); }
-
-      function setStatus(type) {
-        elements.statusDot.className = 'status-dot ' + type;
-      }
-
-      // ---------- FETCH METADATA (Metaplex PDA) ----------
-      async function fetchMetadata(mintPubkey) {
+    // ==================== RPC CONNECTION ====================
+    async function createConnection() {
+      for (const rpcUrl of CONFIG.RPC_URLS) {
         try {
-          const METADATA_PROGRAM_ID = new solanaWeb3.PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
-          const [pda] = solanaWeb3.PublicKey.findProgramAddressSync(
-            [Buffer.from("metadata"), METADATA_PROGRAM_ID.toBuffer(), mintPubkey.toBuffer()],
-            METADATA_PROGRAM_ID
-          );
-          const info = await connection.getAccountInfo(pda);
-          if (!info) return { name:'—', symbol:'—', uri:'—' };
-          const data = info.data;
-          let off = 1 + 32 + 32;
-          const nLen = data[off++];
-          const name = data.slice(off, off + nLen).toString('utf8').replace(/\x00/g, ''); off += nLen;
-          const sLen = data[off++];
-          const symbol = data.slice(off, off + sLen).toString('utf8').replace(/\x00/g, ''); off += sLen;
-          const uLen = data[off++];
-          const uri = data.slice(off, off + uLen).toString('utf8').replace(/\x00/g, '');
-          return { name: name || '—', symbol: symbol || '—', uri: uri || '—' };
-        } catch(e) {
-          console.warn('Metadata fetch failed:', e);
-          return { name:'—', symbol:'—', uri:'—' };
-        }
-      }
-
-      // ---------- FETCH PRICE (Jupiter) ----------
-      async function fetchPrice() {
-        try {
-          const r = await fetch(`https://quote-api.jup.ag/v6/price?ids=${TOKEN_MINT}`);
-          const d = await r.json();
-          if (d.data?.[TOKEN_MINT]?.price) {
-            return `💰 $${parseFloat(d.data[TOKEN_MINT].price).toFixed(6)}`;
-          }
-          return '';
-        } catch(e) { return ''; }
-      }
-
-      // ---------- FETCH HOLDERS ----------
-      async function fetchHolders() {
-        const TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
-        const accounts = await connection.getProgramAccounts(TOKEN_PROGRAM_ID, {
-          filters: [
-            { dataSize: 165 },
-            { memcmp: { offset: 0, bytes: TOKEN_MINT } }
-          ]
-        });
-
-        const map = new Map();
-        for (const { account } of accounts) {
-          const decoded = splToken.AccountLayout.decode(account.data);
-          const amount  = Number(decoded.amount) / Math.pow(10, currentDecimals);
-          if (amount <= 0) continue;
-          const owner = new solanaWeb3.PublicKey(decoded.owner).toBase58();
-          map.set(owner, (map.get(owner) || 0) + amount);
-        }
-
-        let holders = Array.from(map.entries()).map(([o, a]) => ({ owner: o, amount: a }));
-        holders.sort((a, b) => b.amount - a.amount);
-        return holders.map((h, i) => ({
-          ...h,
-          rank: i + 1,
-          percentage: totalSupplyNum > 0 ? (h.amount / totalSupplyNum) * 100 : 0
-        }));
-      }
-
-      // ---------- FIX #1 & #2: PROPER TABLE HTML ----------
-      function renderHolders() {
-        if (!allHolders.length) {
-          elements.holderContainer.innerHTML = '<div style="padding:20px;text-align:center;">No holders found.</div>';
+          const conn = new state.solanaWeb3.Connection(rpcUrl, 'confirmed');
+          await conn.getBlockHeight(); // Test connection
+          state.connection = conn;
           return;
-        }
-
-        let sorted = [...allHolders];
-        if (sortField === 'amount')     sorted.sort((a,b) => sortDirection === 'desc' ? b.amount - a.amount : a.amount - b.amount);
-        else if (sortField === 'rank')  sorted.sort((a,b) => sortDirection === 'asc'  ? a.rank - b.rank     : b.rank - a.rank);
-        else if (sortField === 'percentage') sorted.sort((a,b) => sortDirection === 'desc' ? b.percentage - a.percentage : a.percentage - b.percentage);
-
-        let html = `<table><thead><tr>
-          <th data-sort="rank">#</th>
-          <th>OWNER</th>
-          <th data-sort="amount">BALANCE</th>
-          <th data-sort="percentage">%</th>
-        </tr></thead><tbody>`;
-
-        for (const h of sorted) {
-          html += `<tr>
-            <td style="opacity:0.6;">${h.rank}</td>
-            <td title="${h.owner}">${short(h.owner)}</td>
-            <td style="text-align:right">${h.amount.toLocaleString(undefined, {maximumFractionDigits: currentDecimals})}</td>
-            <td style="text-align:right">${h.percentage.toFixed(4)}%</td>
-          </tr>`;
-        }
-
-        html += `</tbody></table>`;
-        elements.holderContainer.innerHTML = html;
-
-        // FIX #4: Attach listeners once via delegation instead of per-element
-        elements.holderContainer.querySelectorAll('th[data-sort]').forEach(th => {
-          th.addEventListener('click', () => {
-            const f = th.getAttribute('data-sort');
-            if (sortField === f) {
-              sortDirection = sortDirection === 'desc' ? 'asc' : 'desc';
-            } else {
-              sortField = f;
-              sortDirection = (f === 'rank') ? 'asc' : 'desc';
-            }
-            renderHolders();
-            updateSortButtons();
-          });
-        });
+        } catch (e) { console.warn(`RPC failed: ${rpcUrl}`, e); }
       }
-
-      function updateSortButtons() {
-        const arrow = (field) => {
-          if (sortField !== field) return '⇅';
-          return sortDirection === 'desc' ? '▼' : '▲';
-        };
-
-        elements.sortControls.innerHTML = `
-          <button class="sort-btn ${sortField==='amount'?'active':''}" data-sort="amount">💎 Balance ${arrow('amount')}</button>
-          <button class="sort-btn ${sortField==='rank'?'active':''}" data-sort="rank">🏆 Rank ${arrow('rank')}</button>
-          <button class="sort-btn ${sortField==='percentage'?'active':''}" data-sort="percentage">📊 % Supply ${arrow('percentage')}</button>`;
-
-        // FIX #4: These buttons are fully replaced each call, so listeners are fresh
-        elements.sortControls.querySelectorAll('.sort-btn').forEach(btn => {
-          btn.addEventListener('click', () => {
-            const f = btn.getAttribute('data-sort');
-            if (sortField === f) {
-              sortDirection = sortDirection === 'desc' ? 'asc' : 'desc';
-            } else {
-              sortField = f;
-              sortDirection = (f === 'rank') ? 'asc' : 'desc';
-            }
-            renderHolders();
-            updateSortButtons();
-          });
-        });
-      }
-
-      // ---------- MAIN DATA LOAD ----------
-      async function loadTokenData() {
-        elements.holderLoading.style.display = 'flex';
-        elements.holderContainer.innerHTML = '';
-        setStatus('loading');
-
-        try {
-          const mintPubkey = new solanaWeb3.PublicKey(TOKEN_MINT);
-          const mintInfo   = await splToken.getMint(connection, mintPubkey);
-
-          currentDecimals = mintInfo.decimals;
-          totalSupplyNum  = Number(mintInfo.supply) / Math.pow(10, currentDecimals);
-
-          elements.tokenDecimals.innerText   = currentDecimals;
-          elements.tokenSupply.innerText     = `${totalSupplyNum.toLocaleString()} (${mintInfo.supply} raw)`;
-          elements.mintAuthority.innerText   = mintInfo.mintAuthority ? mintInfo.mintAuthority.toBase58() : 'None (immutable)';
-          elements.freezeAuthority.innerText = mintInfo.freezeAuthority ? mintInfo.freezeAuthority.toBase58() : 'None';
-
-          // Fetch metadata in parallel with price
-          const [meta, price] = await Promise.all([
-            fetchMetadata(mintPubkey),
-            fetchPrice()
-          ]);
-
-          elements.tokenName.innerText   = meta.name;
-          elements.tokenSymbol.innerText = meta.symbol;
-          elements.metadataUri.innerText = meta.uri.length > 48 ? meta.uri.slice(0, 45) + '…' : meta.uri;
-
-          if (price) {
-            elements.pricePreview.innerHTML = `<span>${price}</span>`;
-          }
-
-          // Fetch holders (this is the heaviest call)
-          const holders = await fetchHolders();
-          allHolders = holders;
-          elements.holderCount.innerText = `(${holders.length} accounts)`;
-
-          renderHolders();
-          updateSortButtons();
-          setStatus('live');
-
-          lastRefresh = new Date();
-          elements.refreshInfo.innerText = `Last refresh: ${lastRefresh.toLocaleTimeString()} • Auto-refresh every 45s`;
-
-        } catch(err) {
-          console.error(err);
-          setStatus('error');
-          elements.holderContainer.innerHTML = `<div class="error-message">⚠️ Error: ${err.message}<br><small>Public RPC has rate limits. Try again in a moment or use a dedicated endpoint.</small><br><button class="retry-btn" onclick="location.reload()">Retry</button></div>`;
-        } finally {
-          elements.holderLoading.style.display = 'none';
-        }
-      }
-
-      loadTokenData();
-
-      // Auto-refresh every 45 seconds
-      setInterval(() => {
-        if (allHolders.length) loadTokenData();
-      }, 45000);
+      throw new Error("Could not connect to any Solana RPC endpoint.");
     }
 
-    // ---------- PROJECT CORE (wallet + countdown) ----------
+    // ==================== FETCH METADATA ====================
+    async function fetchMetadata(mintPubkey) {
+      try {
+        const METADATA_PROGRAM_ID = new state.solanaWeb3.PublicKey(CONFIG.METADATA_PROGRAM_ID);
+        const [pda] = state.solanaWeb3.PublicKey.findProgramAddressSync(
+          [Buffer.from("metadata"), METADATA_PROGRAM_ID.toBuffer(), mintPubkey.toBuffer()], METADATA_PROGRAM_ID
+        );
+        const info = await state.connection.getAccountInfo(pda);
+        if (!info) return { name: '—', symbol: '—', uri: '—' };
+        const data = info.data; let off = 1 + 32 + 32;
+        const nLen = data[off++]; const name = data.slice(off, off + nLen).toString('utf8').replace(/\x00/g, ''); off += nLen;
+        const sLen = data[off++]; const symbol = data.slice(off, off + sLen).toString('utf8').replace(/\x00/g, ''); off += sLen;
+        const uLen = data[off++]; const uri = data.slice(off, off + uLen).toString('utf8').replace(/\x00/g, '');
+        return { name: name || '—', symbol: symbol || '—', uri: uri || '—' };
+      } catch (e) { return { name: '—', symbol: '—', uri: '—' }; }
+    }
+
+    // ==================== FETCH PRICE ====================
+    async function fetchPrice() {
+      try {
+        const r = await fetch(`${CONFIG.JUPITER_PRICE_API}?ids=${CONFIG.TOKEN_MINT}`);
+        const d = await r.json();
+        if (d.data?.[CONFIG.TOKEN_MINT]?.price) return `💰 $${parseFloat(d.data[CONFIG.TOKEN_MINT].price).toFixed(6)}`;
+        return '';
+      } catch (e) { return ''; }
+    }
+
+    // ==================== FETCH HOLDERS ====================
+    async function fetchHoldersWithOptimization() {
+      const TOKEN_PROGRAM_ID = new state.solanaWeb3.PublicKey(CONFIG.TOKEN_PROGRAM_ID);
+      try {
+        const accounts = await state.connection.getProgramAccounts(TOKEN_PROGRAM_ID, {
+          filters: [{ dataSize: 165 }, { memcmp: { offset: 0, bytes: CONFIG.TOKEN_MINT } }],
+          dataSlice: { offset: 32, length: 40 }, commitment: 'confirmed'
+        });
+        const holderMap = new Map();
+        for (const { account } of accounts) {
+          const data = account.data;
+          const owner = new state.solanaWeb3.PublicKey(data.slice(0, 32)).toBase58();
+          const amount = Number(data.readBigUInt64LE(32)) / Math.pow(10, state.currentDecimals);
+          if (amount <= 0) continue;
+          holderMap.set(owner, (holderMap.get(owner) || 0) + amount);
+        }
+        let holders = Array.from(holderMap.entries()).map(([owner, amount]) => ({ owner, amount }));
+        holders.sort((a, b) => b.amount - a.amount);
+        const totalHolders = holders.length;
+        state.isFullList = totalHolders <= CONFIG.MAX_HOLDERS_DISPLAY;
+        if (!state.isFullList) holders = holders.slice(0, CONFIG.MAX_HOLDERS_DISPLAY);
+        return {
+          holders: holders.map((h, i) => ({ ...h, rank: i + 1, percentage: state.totalSupplyNum > 0 ? (h.amount / state.totalSupplyNum) * 100 : 0 })),
+          totalHolders, isFullList: state.isFullList
+        };
+      } catch (error) {
+        console.warn('getProgramAccounts failed, using fallback:', error);
+        return await fetchTopHoldersFallback();
+      }
+    }
+
+    async function fetchTopHoldersFallback() {
+      try {
+        const mintPubkey = new state.solanaWeb3.PublicKey(CONFIG.TOKEN_MINT);
+        const largestAccounts = await state.connection.getTokenLargestAccounts(mintPubkey);
+        const holders = [];
+        for (const { address, amount } of largestAccounts.value) {
+          const accountInfo = await state.connection.getAccountInfo(address);
+          if (!accountInfo) continue;
+          const tokenAccount = state.splToken.AccountLayout.decode(accountInfo.data);
+          const owner = new state.solanaWeb3.PublicKey(tokenAccount.owner).toBase58();
+          const amountDecimal = Number(tokenAccount.amount) / Math.pow(10, state.currentDecimals);
+          holders.push({ owner, amount: amountDecimal });
+        }
+        holders.sort((a, b) => b.amount - a.amount);
+        return {
+          holders: holders.map((h, i) => ({ ...h, rank: i + 1, percentage: state.totalSupplyNum > 0 ? (h.amount / state.totalSupplyNum) * 100 : 0 })),
+          totalHolders: largestAccounts.value.length, isFullList: false
+        };
+      } catch (error) { throw error; }
+    }
+
+    // ==================== UI RENDERING ====================
+    function renderHoldersTable() {
+      if (!state.allHolders.length) { elements.holderContainer.innerHTML = '<div style="padding:20px;text-align:center;">No holders found.</div>'; return; }
+      let sorted = [...state.allHolders];
+      if (state.sortField === 'amount') sorted.sort((a, b) => state.sortDirection === 'desc' ? b.amount - a.amount : a.amount - b.amount);
+      else if (state.sortField === 'rank') sorted.sort((a, b) => state.sortDirection === 'asc' ? a.rank - b.rank : b.rank - a.rank);
+      else if (state.sortField === 'percentage') sorted.sort((a, b) => state.sortDirection === 'desc' ? b.percentage - a.percentage : a.percentage - b.percentage);
+
+      let html = `<table><thead><tr><th data-sort="rank">#</th><th>OWNER</th><th data-sort="amount">BALANCE</th><th data-sort="percentage">%</th></tr></thead><tbody>`;
+      for (const h of sorted) {
+        html += `<tr><td style="opacity:0.6;">${h.rank}</td><td title="${h.owner}">${shortAddress(h.owner)}</td><td style="text-align:right">${formatNumber(h.amount, state.currentDecimals)}</td><td style="text-align:right">${h.percentage.toFixed(4)}%</td></tr>`;
+      }
+      html += '</tbody></table>';
+      elements.holderContainer.innerHTML = html;
+
+      elements.holderContainer.querySelectorAll('th[data-sort]').forEach(th => {
+        th.addEventListener('click', () => {
+          const f = th.getAttribute('data-sort');
+          if (state.sortField === f) state.sortDirection = state.sortDirection === 'desc' ? 'asc' : 'desc';
+          else { state.sortField = f; state.sortDirection = (f === 'rank') ? 'asc' : 'desc'; }
+          renderHoldersTable(); updateSortButtons();
+        });
+      });
+    }
+
+    function updateSortButtons() {
+      const getArrow = (field) => { if (state.sortField !== field) return '⇅'; return state.sortDirection === 'desc' ? '▼' : '▲'; };
+      elements.sortControls.innerHTML = `
+        <button class="sort-btn ${state.sortField==='amount'?'active':''}" data-sort="amount">💎 Balance ${getArrow('amount')}</button>
+        <button class="sort-btn ${state.sortField==='rank'?'active':''}" data-sort="rank">🏆 Rank ${getArrow('rank')}</button>
+        <button class="sort-btn ${state.sortField==='percentage'?'active':''}" data-sort="percentage">📊 % Supply ${getArrow('percentage')}</button>`;
+      elements.sortControls.querySelectorAll('.sort-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const f = btn.getAttribute('data-sort');
+          if (state.sortField === f) state.sortDirection = state.sortDirection === 'desc' ? 'asc' : 'desc';
+          else { state.sortField = f; state.sortDirection = (f === 'rank') ? 'asc' : 'desc'; }
+          renderHoldersTable(); updateSortButtons();
+        });
+      });
+    }
+
+    function updateTokenInfo(mintInfo, metadata, price) {
+      state.currentDecimals = mintInfo.decimals;
+      state.totalSupplyNum = Number(mintInfo.supply) / Math.pow(10, state.currentDecimals);
+      elements.tokenDecimals.textContent = state.currentDecimals;
+      elements.tokenSupply.textContent = `${formatNumber(state.totalSupplyNum)} (${mintInfo.supply} raw)`;
+      elements.mintAuthority.textContent = mintInfo.mintAuthority ? mintInfo.mintAuthority.toBase58() : 'None (immutable)';
+      elements.freezeAuthority.textContent = mintInfo.freezeAuthority ? mintInfo.freezeAuthority.toBase58() : 'None';
+      elements.tokenName.textContent = metadata.name;
+      elements.tokenSymbol.textContent = metadata.symbol;
+      elements.metadataUri.textContent = metadata.uri.length > 48 ? metadata.uri.slice(0, 45) + '…' : metadata.uri;
+      if (price) elements.pricePreview.innerHTML = `<span>${price}</span>`;
+    }
+
+    // ==================== MAIN DATA LOADING ====================
+    async function loadTokenData() {
+      if (state.isLoading) return;
+      showLoading(true); setStatus('loading');
+      try {
+        const mintPubkey = new state.solanaWeb3.PublicKey(CONFIG.TOKEN_MINT);
+        const mintInfo = await state.splToken.getMint(state.connection, mintPubkey);
+        const [metadata, price] = await Promise.all([fetchMetadata(mintPubkey), fetchPrice()]);
+        updateTokenInfo(mintInfo, metadata, price);
+
+        const holdersPromise = fetchHoldersWithOptimization();
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Holders fetch timeout')), CONFIG.HOLDERS_TIMEOUT));
+        const holdersResult = await Promise.race([holdersPromise, timeoutPromise]);
+
+        state.allHolders = holdersResult.holders; state.isFullList = holdersResult.isFullList;
+        if (elements.holderCount) {
+          elements.holderCount.textContent = state.isFullList ? `(${holdersResult.totalHolders} accounts)` : `(showing top ${holdersResult.holders.length} of ${holdersResult.totalHolders} holders)`;
+        }
+        renderHoldersTable(); updateSortButtons(); setStatus('live');
+        state.lastRefresh = new Date();
+        if (elements.refreshInfo) elements.refreshInfo.textContent = `Last refresh: ${state.lastRefresh.toLocaleTimeString()} • Auto-refresh every ${CONFIG.REFRESH_INTERVAL/1000}s`;
+      } catch (error) {
+        console.error('Token data loading failed:', error); setStatus('error');
+        showError(`Failed to load token data: ${error.message}. Please try again.`);
+      } finally { showLoading(false); }
+    }
+
+    // ==================== WALLET & CORE ====================
     function startProjectCore() {
       const walletBtn = document.getElementById('connectWallet');
       if (walletBtn) {
         walletBtn.addEventListener('click', async (e) => {
           e.preventDefault();
-          if (!window.solana || !window.solana.isPhantom) {
-            alert("Install Phantom wallet to connect.");
-            window.open("https://phantom.app/");
-            return;
-          }
+          if (!window.solana || !window.solana.isPhantom) { alert("Install Phantom wallet to connect."); window.open("https://phantom.app/"); return; }
           try {
             const resp = await window.solana.connect();
             const pk = resp.publicKey.toString();
             walletBtn.innerText = `🔗 ${pk.slice(0,5)}…${pk.slice(-4)}`;
-          } catch(e) {
-            console.warn('Wallet connect cancelled or failed:', e);
-          }
+          } catch(e) { console.warn('Wallet connect cancelled or failed:', e); }
         });
       }
-
-      // FIX #9: Basic countdown placeholder (replace with actual launch time)
-      const LAUNCH_TIME = new Date('2025-08-01T00:00:00Z').getTime(); // <-- Set your real launch time
+      const LAUNCH_TIME = new Date('2025-08-01T00:00:00Z').getTime();
       setInterval(() => {
-        const now  = Date.now();
-        const diff = LAUNCH_TIME - now;
-        const el   = document.getElementById('clock');
+        const now = Date.now(); const diff = LAUNCH_TIME - now; const el = document.getElementById('clock');
         if (diff > 0) {
-          const h = Math.floor(diff / 3600000);
-          const m = Math.floor((diff % 3600000) / 60000);
-          const s = Math.floor((diff % 60000) / 1000);
+          const h = Math.floor(diff / 3600000); const m = Math.floor((diff % 3600000) / 60000); const s = Math.floor((diff % 60000) / 1000);
           el.innerText = `Next Token In: ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-        } else {
-          el.innerText = 'Next Token In: LAUNCHED 🚀';
-        }
+        } else { el.innerText = 'Next Token In: LAUNCHED 🚀'; }
       }, 1000);
     }
 
-    initApp();
+    // ==================== INITIALIZATION ====================
+    async function initTokenViewer() {
+      try {
+        elements.holderContainer.innerHTML = '<div style="padding:20px;text-align:center;">⏳ Loading Solana libraries…</div>';
+        await loadSolanaLibraries();
+        await createConnection();
+        await loadTokenData();
+        startProjectCore();
+        setInterval(loadTokenData, CONFIG.REFRESH_INTERVAL);
+      } catch (error) {
+        console.error('❌ Initialization failed:', error);
+        showError(`Initialization failed: ${error.message}`);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', initTokenViewer);
   </script>
 </body>
 </html>
