@@ -56,6 +56,8 @@
     .status-dot.live { background: #27c93f; } .status-dot.error { background: #ff5f56; } .status-dot.loading { background: #ffbd2e; }
     @keyframes statusPulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
     .refresh-info { font-size: 10px; opacity: 0.4; margin-top: 6px; }
+    .ws-indicator { font-size: 10px; color: #27c93f; margin-left: 10px; animation: wsPulse 2s infinite; }
+    @keyframes wsPulse { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
   </style>
 </head>
 <body>
@@ -78,7 +80,7 @@
 </pre>
     <div style="margin-top: 20px; border: 1px solid rgba(255,255,255,0.2); border-radius: 10px; padding: 16px; background: #000000cc;">
       <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap;">
-        <div style="font-size: 14px; font-weight: bold;">🔍 TOKEN VIEWER <span id="statusDot" class="status-dot loading"></span></div>
+        <div style="font-size: 14px; font-weight: bold;">🔍 TOKEN VIEWER <span id="statusDot" class="status-dot loading"></span><span id="wsStatus" class="ws-indicator" style="display:none;">🔴 LIVE</span></div>
         <div id="pricePreview"></div>
       </div>
       <div class="fixed-token-address">📍 <strong>Target Token</strong><br><code>B7aNmmvPANVuqKgnEMAJzY6sUB6pcebZCxWUqzvApump</code></div>
@@ -119,9 +121,13 @@
       TOKEN_PROGRAM_ID: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
       METADATA_PROGRAM_ID: "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s",
       JUPITER_PRICE_API: "https://quote-api.jup.ag/v6/price",
-      RPC_URLS: [
-        "https://mainnet.helius-rpc.com/?api-key=70da5c4d-b87b-4842-bfd5-a9977e4aed1c",
-        "https://api.mainnet-beta.solana.com",
+      
+        HELIUS_API_KEY: "70da5c4d-b87b-4842-bfd5-a9977e4aed1c",
+      get HTTP_ENDPOINT() { return `https://api.mainnet-beta.solana.com`; }, // Changed to public
+      get WS_ENDPOINT() { return `wss://api.mainnet-beta.solana.com`; }, // Changed to public
+      
+      FALLBACK_HTTP_ENDPOINTS: [
+        `https://mainnet.helius-rpc.com/?api-key=${this.HELIUS_API_KEY}`, // Moved to fallback
         "https://rpc.ankr.com/solana"
       ],
       REFRESH_INTERVAL: 45000,
@@ -151,6 +157,7 @@
       sortControls: document.getElementById('holderSortControls'),
       pricePreview: document.getElementById('pricePreview'),
       statusDot: document.getElementById('statusDot'),
+      wsStatus: document.getElementById('wsStatus'),
       holderCount: document.getElementById('holderCount'),
       refreshInfo: document.getElementById('refreshInfo')
     };
@@ -204,15 +211,48 @@
 
     // ==================== RPC CONNECTION ====================
     async function createConnection() {
-      for (const rpcUrl of CONFIG.RPC_URLS) {
+      const endpointsToTry = [CONFIG.HTTP_ENDPOINT, ...CONFIG.FALLBACK_HTTP_ENDPOINTS];
+      
+      for (const httpUrl of endpointsToTry) {
         try {
-          const conn = new state.solanaWeb3.Connection(rpcUrl, 'confirmed');
-          await conn.getBlockHeight(); // Test connection
+          // Configure connection to explicitly use Helius WSS for WebSockets
+          const connectionConfig = {
+            commitment: 'confirmed',
+            wsEndpoint: CONFIG.WS_ENDPOINT // Force WebSocket to use your wss:// endpoint
+          };
+          
+          const conn = new state.solanaWeb3.Connection(httpUrl, connectionConfig);
+          await conn.getBlockHeight(); // Test HTTP connection
+          
           state.connection = conn;
+          console.log(`✅ Connected to HTTP RPC: ${httpUrl}`);
+          console.log(`🔌 WebSocket Endpoint configured: ${CONFIG.WS_ENDPOINT}`);
+          
+          // Test WebSocket connection
+          setupWebSocketListeners();
           return;
-        } catch (e) { console.warn(`RPC failed: ${rpcUrl}`, e); }
+        } catch (e) { 
+          console.warn(`HTTP RPC failed: ${httpUrl}`, e); 
+        }
       }
       throw new Error("Could not connect to any Solana RPC endpoint.");
+    }
+
+    // ==================== WEBSOCKET REAL-TIME FEATURES ====================
+    function setupWebSocketListeners() {
+      try {
+        const mintPubkey = new state.solanaWeb3.PublicKey(CONFIG.TOKEN_MINT);
+        
+        // Subscribe to account changes (WebSocket)
+        state.connection.onAccountChange(mintPubkey, (accountInfo, context) => {
+          // When the mint account changes (e.g., authority changes, or just a slot update)
+          elements.wsStatus.style.display = 'inline';
+          console.log(`🔴 Live WebSocket Update detected at slot ${context.slot}`);
+        }, 'confirmed');
+
+      } catch (err) {
+        console.warn("WebSocket subscription failed:", err);
+      }
     }
 
     // ==================== FETCH METADATA ====================
